@@ -49,3 +49,4 @@ ENV/
 Thumbs.db
 
 *.onnx
+voice/en_GB-cori-high.onnx.json
