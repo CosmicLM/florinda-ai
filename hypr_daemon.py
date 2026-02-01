@@ -4,10 +4,10 @@ import sys
 from google import genai # Note the change in import
 from dotenv import load_dotenv
 
-# Identity & Neural Link
-
+#Load .env files for API key management and accessibility.
 load_dotenv()
 
+# Identity & Neural Link
 api_key = os.getenv("HYPR_API_KEY")
 if not api_key:
     print("CRITICAL: HYPR_API_KEY not found.")
@@ -16,6 +16,7 @@ if not api_key:
 # New Client Initialization
 client = genai.Client(api_key=api_key)
 
+#HyprCore is the brain of Hypr. It processes text, has the voice models connected.
 class HyprCore:
     def __init__(self):
         self.voice_model = os.path.expanduser("~/Projects/hypr-ai/voice/en_GB-cori-high.onnx")
@@ -25,18 +26,19 @@ class HyprCore:
         if text:
             subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True)
 
+#Standard output and standard error are the two main output streams for Hypr to emit text.
     def execute(self, cmd):
         if cmd and cmd.lower() != "null":
             print(f"HYPR EXEC: {cmd}")
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            return result.stdout if result.returncode == 0 else result.stderr
+            return result.standardOutput if result.returncode == 0 else result.standardError #Change abbreviated versions of Standard code to actual name
         return "No action required."
 
     def process(self, prompt):
         try:
             # New SDK uses client.models.generate_content
             response = client.models.generate_content(
-                model="gemini-3-flash-preview", # Updated to the latest 2026 model
+                model="gemini-3-flash-preview",
                 contents=prompt,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
@@ -44,6 +46,7 @@ class HyprCore:
             )
             
             # The text is now accessed through the .text attribute of the response object
+            
             full_text = response.text
             
             if "|" in full_text:
