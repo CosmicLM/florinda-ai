@@ -19,7 +19,7 @@ client = genai.Client(api_key=api_key)
 #HyprCore is the brain of Hypr. It processes text, has the voice models connected.
 class HyprCore:
     def __init__(self):
-        self.voice_model = os.path.expanduser("~/Projects/hypr-ai/voice/en_GB-cori-high.onnx")
+        self.voice_model = os.getenv("DEFAULT_VOICE_MODEL")
         self.piper_cmd = f"piper-tts --model {self.voice_model} --output_raw | aplay -r 22050 -f S16_LE -t raw"
 
     def speak(self, text):
