@@ -2,8 +2,9 @@ import subprocess
 from config import voice_model #included the voice model on config because of accessibility to change voice model
 
 class HyprCore:
-    def __init__(self):
+    def __init__(self, api_key, voice_model):
         self.voice_model = voice_model
+        self.api_key = api_key
         self.piper_cmd = f"piper-tts --model {self.voice_model} --output_raw | aplay -r 22050 -f S16_LE -t raw"
 
     def speak(self, text):
