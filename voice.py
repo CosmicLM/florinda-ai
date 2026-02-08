@@ -1,5 +1,5 @@
 import subprocess
-from config import voice_model
+from config import voice_model #included the voice model on config because of accessibility to change voice model
 
 class HyprCore:
     def __init__(self):
