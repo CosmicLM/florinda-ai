@@ -2,15 +2,16 @@ from google import genai
 from config import api_key
 
 class PromptProcessor:
-    def __init__(self):
-        self.client = genai.Client(api_key)
+    def __init__(self,user_input):
+        self.client = genai.Client(api_key=api_key)
+        self.user_input = user_input
     
-    def process(self, prompt):
+    def process(self, user_input):
         try:
             # New SDK uses client.models.generate_content
-            response = genai.Client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=prompt,
+            response = self.client.models.generate_content(
+                model="gemini-3-flash",
+                contents=self.user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
                 }
@@ -32,3 +33,10 @@ class PromptProcessor:
                 
         except Exception as e:
             return f"Brain Error: {str(e)}"
+        
+    def speak(self, text):
+        print(f"TTS: {text}")
+    
+    def execute(self, cmd):
+        
+        return f"Executing {cmd}..."
