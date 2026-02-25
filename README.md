@@ -1,8 +1,9 @@
 # Hypr-AI
 
-A Jarvis-like research assistant deeply integrated into your Linux laptop and Hyprland environment.
+A Jarvis-like research assistant deeply integrated into your Linux laptop and Hyprland environment. Made for quantum computing research
 
 ## Overview
+
 
 Hypr-AI is a voice-activated, AI-powered research assistant designed specifically for Hyprland users. Get instant answers, perform research, and manage tasks without leaving your workflow.
 
