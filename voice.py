@@ -13,3 +13,4 @@ class HyprCore:
     def speak(self, text):
         if text:
             subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True)
+            

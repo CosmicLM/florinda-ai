@@ -4,14 +4,13 @@ from config import api_key
 class PromptProcessor:
     def __init__(self,user_input):
         self.client = genai.Client(api_key=api_key)
-        self.user_input = user_input
     
     def process(self, user_input):
         try:
             # New SDK uses client.models.generate_content
             response = self.client.models.generate_content(
                 model="gemini-3-flash",
-                contents=self.user_input,
+                contents=user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
                 }
