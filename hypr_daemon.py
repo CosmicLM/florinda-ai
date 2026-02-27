@@ -10,5 +10,9 @@ if __name__ == "__main__":
     
     user_input = " ".join(sys.argv[1:])
     if user_input.strip():
-        print(core.processor.process(user_input))
+        result = core.processor.process(user_input)
+        
+        print(result)
+        
+        core.speak(result)
         
