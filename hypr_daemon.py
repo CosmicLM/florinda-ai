@@ -5,8 +5,10 @@ from processor import PromptProcessor
 
 
 if __name__ == "__main__":
-    core = HyprCore(api_key, voice_model, PromptProcessor)
+    processor = PromptProcessor("init")
+    core = HyprCore(api_key, voice_model, processor)
+    
     user_input = " ".join(sys.argv[1:])
     if user_input.strip():
-        print(core.processor(user_input))
+        print(core.processor.process(user_input))
         

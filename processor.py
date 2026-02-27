@@ -9,7 +9,7 @@ class PromptProcessor:
         try:
             # New SDK uses client.models.generate_content
             response = self.client.models.generate_content(
-                model="gemini-3-flash",
+                model="gemini-3-flash-preview",
                 contents=user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
