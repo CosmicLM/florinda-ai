@@ -11,3 +11,6 @@ if not api_key:
     sys.exit(1)
     
 voice_model = os.getenv("DEFAULT_VOICE_MODEL")
+
+# Import system-wide constants to ensure consistent behavior across all Hypr modules.
+NULL_COMMAND = "null"
