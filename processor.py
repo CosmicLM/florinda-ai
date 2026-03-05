@@ -2,12 +2,33 @@ from google import genai
 from config import api_key
 
 class PromptProcessor:
-    def __init__(self,user_input):
-        self.client = genai.Client(api_key=api_key)
+    def __init__(self,ai_client):
+        self.client = ai_client
+        
+    def _parse_response(self, raw_text):
+        if "|" not in raw_text:
+            return {
+                "execute": "null",
+                "speak": raw_text.strip()
+            }
+            
+        split_parts = raw_text.split("|", 1)
     
+        system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
+        assistant_speech_text = split_parts[1].replace("SPEECH", "").strip()
+      
+      
+        return {
+            
+            "execute": system_shell_command,
+            "speak": assistant_speech_text
+        }
+
+        
+                                
     def process(self, user_input):
         try:
-            # New SDK uses client.models.generate_content
+           
             response = self.client.models.generate_content(
                 model="gemini-3-flash-preview",
                 contents=user_input,
