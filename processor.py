@@ -1,7 +1,7 @@
 from google import genai
 from config import api_key, NULL_COMMAND
 
-class PromptProcessor:
+class HyprInstructionOrchestrator:
     def __init__(self,ai_client):
         self.client = ai_client
         
@@ -27,13 +27,14 @@ class PromptProcessor:
             "execute": system_shell_command,
             "speak": assistant_speech_text
         } 
-                                
-    def process(self, user_input):
+                       
+    #orchestra in galicia works as an orgnanized set of group, just like how hypr_orchestra_units organizes the response and full_text         
+    def _hypr_orchestra_unit(self, user_input):
         try:
            
             response = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=user_input,
+                hypr_model="gemini-3.1-flash-lite",
+                persona_contents=user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
                 }
@@ -41,7 +42,7 @@ class PromptProcessor:
             
             full_text = response.text
         
-             # Guard against empty API responses - fail gracefully
+             # Guard against empty API responses - fail gracefully.
             if not response.text.strip():
                  full_text = ""
                 

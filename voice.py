@@ -1,16 +1,15 @@
 import subprocess
-from config import voice_model #included the voice model on config because of accessibility to change voice model
-from processor import PromptProcessor
-class HyprCore:
-    def __init__(self, api_key, voice_model, PromptProcessor):
-        self.voice_model = voice_model
-        self.processor = PromptProcessor 
-        self.api_key = api_key
-        self.piper_cmd = f"piper-tts --model {self.voice_model} --output_raw | aplay -r 22050 -f S16_LE -t raw"
+class HyprYapHandling:
+    def __init__(self, a_voz_model,):
+        self.voice_model = a_voz_model
+        commandante_tts_command = f"piper-tts --model {self.voice_model} --output_raw"
+        gaita_output_command = "aplay -r 22050 -f S16_LE -t raw"
+        self.piper_cmd = f"{commandante_tts_command} | {gaita_output_command}"
         
         
-
-    def speak(self, text):
-        if text:
-            subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True)
+#Standard engineering flow for in case the speech processes the text from the piper module
+    def stream_vocal_synthesis(self, text):
+        if not text or not text.strip():
+            return
+        subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True)
             
