@@ -1,13 +1,13 @@
-from google import genai
-from config import api_key, NULL_COMMAND
+from config import NULL_COMMAND
 
 class HyprInstructionOrchestrator:
     def __init__(self,ai_client):
         self.client = ai_client
-        
-    def _parse_response(self, raw_text):
+            
+    #Construe means to interpret, parse of define something, I believe it is appropriate to use this term instead of parse.
+    def construe_response(self, raw_text):
     # Model format: "COMMAND: bash | SPEECH: text"
-    # If no pipe, treat entire response as speech with no command execution
+    # If there are no pipes the code will then treat entire response as speech with no command execution.
    
         if "|" not in raw_text:
             return {
@@ -20,10 +20,7 @@ class HyprInstructionOrchestrator:
         
         system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
         assistant_speech_text = split_parts[1].replace("SPEECH:", "").strip()
-      
-      
-        return {
-            
+        return {      
             "execute": system_shell_command,
             "speak": assistant_speech_text
         } 
@@ -32,27 +29,30 @@ class HyprInstructionOrchestrator:
     def _hypr_orchestra_unit(self, user_input):
         try:
            
-            response = self.client.models.generate_content(
-                hypr_model="gemini-3.1-flash-lite",
-                persona_contents=user_input,
+            actual_answer = self.client.models.generate_content(
+                model="gemini-3.1-flash-lite",
+                contents=user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
                 }
             )       
             
-            full_text = response.text
-        
+            #Just in case API does not return actual input, I have included a sort of filter to turn the output (doesnt matter what it is)
+            #To an actual string, Which i then pass it on to the guard clause.
+            
+            full_hypr_text = getattr(actual_answer, "text", "") or ""
              # Guard against empty API responses - fail gracefully.
-            if not response.text.strip():
-                 full_text = ""
+            if not full_hypr_text.strip():
+                 full_hypr_text = ""
                 
-            # Delegate parsing to _parse_response; it handles all cases including empty input
-            parsed_text = self._parse_response(full_text)
-            return parsed_text
-                
+            # Delegate parsing (or in this case, construe) to construe_response; it handles all cases including empty input
+            construed_content = self.construe_response(full_hypr_text)
+            return construed_content
+        
         except Exception as e:
-             # Return error dict with NULL_COMMAND so caller knows no execution should occur
             return {
-                "execute": NULL_COMMAND,
-                "speak": f"Brain Error: {str(e)}"
+            "execute": NULL_COMMAND,
+            "speak": f"Brain Error: {str(e)}"
             }
+        
+        # Return error dict with NULL_COMMAND so caller knows no execution should occur
