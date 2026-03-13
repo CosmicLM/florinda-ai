@@ -5,7 +5,7 @@ from processor import HyprInstructionOrchestrator
 
 
 if __name__ == "__main__":
-    processor = HyprInstructionOrchestrator("init")
+    processor = HyprInstructionOrchestrator("gemini-3.1-flash-lite")
     core = HyprYapHandling(api_key, voice_model, processor)
     
     user_input = " ".join(sys.argv[1:])
