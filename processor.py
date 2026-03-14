@@ -1,4 +1,4 @@
-from config import NULL_COMMAND
+from config import NULL_COMMAND, AI_MODEL
 
 '''
 This orchestrator class is crucial for the functionality of Hypr-AI, it is purposefully included to help the AI parse the text
@@ -31,7 +31,7 @@ class HyprInstructionOrchestrator:
         try:
            
             actual_answer = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+                model=AI_MODEL,
                 contents=user_input,
                 config={
                     "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
