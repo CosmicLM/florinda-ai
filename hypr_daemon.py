@@ -1,6 +1,6 @@
 import sys
 from google import genai
-from config import API_KEY, VOICE_MODEL
+from config import API_KEY, VOICE_MODEL, DEBUG
 from voice import HyprYapHandling
 from processor import HyprInstructionOrchestrator
 
@@ -14,6 +14,7 @@ if __name__ == "__main__":
     if user_input.strip():
         result = processor._hypr_orchestra_unit(user_input)
         
-        print(result)
+        if DEBUG:
+            print(result)
         
         core.stream_vocal_synthesis(result["speak"])
