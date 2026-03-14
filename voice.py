@@ -1,4 +1,5 @@
 import subprocess
+from config import DEBUG
 class HyprYapHandling:
     def __init__(self, a_voz_model,):
         self.voice_model = a_voz_model
@@ -11,5 +12,6 @@ class HyprYapHandling:
     def stream_vocal_synthesis(self, text):
         if not text or not text.strip():
             return
-        subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True)
+        stderr = None if DEBUG else subprocess.DEVNULL
+        subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True, stderr=stderr)
             
