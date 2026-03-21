@@ -1,14 +1,14 @@
 from config import NULL_COMMAND, AI_MODEL
 from executor import SystemTerminal
 from voice import HyprYapHandling
+from string import Template
 
 '''
 This is a class for the HyprInstructor to return
 '''
 class HyprInstructionResult:
     def __init__(self, speech, recursive = None, info = None, command = NULL_COMMAND) -> None:
-        self.parent = parent
-        self.command = command
+        self.command = command if command != "" else NULL_COMMAND
         self.speech = speech
         self.recursive = recursive == "Y"
         self.info = info
@@ -19,7 +19,6 @@ to then perform a command. Without this, the fundamental aspect of Hypr would be
 '''
 
 class HyprInstructionOrchestrator:
-
     def __init__(self, ai_client ,prompt_path = None):
         self.client = ai_client
         self.EOC = "<END>" # End-Of-Command
@@ -27,10 +26,12 @@ class HyprInstructionOrchestrator:
 
     def _load_prompt(self):
         with open(self.prompt_path, "r") as f:
-            return f.read().format(EOC = self.EOC, SYS_INFO = "") # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
+            template = Template(f.read())
+            return template.safe_substitute(EOC = self.EOC, SYS_INFO = "") # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
         #TODO: support sysinfo in the prompt to simplify
 
     def construe_response(self, raw_text):   
+        print(raw_text)
         if self.EOC not in raw_text:
             return HyprInstructionResult(speech=raw_text.strip())
         # Split on pipe to take command and speech parts
@@ -62,6 +63,7 @@ class HyprInstructionOrchestrator:
             return construed_content
         
         except Exception as e:
+            print(e.__str__())
             return HyprInstructionResult(speech="An Error Had Uccured. pls help.")
         #Return error dict with NULL_COMMAND <-- opipoy here... i dont see why you need to do it like that :/ (still kept the NULL_COMMAND, just moved it to class ^^^)
         # Alternative solution:
@@ -85,19 +87,25 @@ class HandleHyprResult:
         return self.terminal.run_command(command)
 
 
-    def handle_result(self, result:HyprInstructionResult):
+    def _handle_result(self, result:HyprInstructionResult):
         output = None
 
         self._speak(result.speech)
-        if result.command != None:
+        if result.command != NULL_COMMAND:
             output = self._execute_command(result.command)
 
         if result.recursive:
             with open(self.session_path, "r") as f:
-                session_prompt = f.read()
-            session_prompt.format(INFO = result.info, COMMAND=result.command, OUTPUT=output or "No Command Sent")
-            self.handle_result(self.orcastra.construe_response(session_prompt))
+                session_prompt = Template(f.read())
+            session_prompt = session_prompt.safe_substitute(INFO = result.info, COMMAND=result.command, OUTPUT=output or "No Command Sent")
+            self._handle_result(self.orcastra._hypr_orchestra_unit(session_prompt))
+
+
+
+    def handle_result(self):
+        self._handle_result(self.result)
 
 
     def _speak(self, speech:str):
+        print(speech)
         self.yap_model.stream_vocal_synthesis(speech)
