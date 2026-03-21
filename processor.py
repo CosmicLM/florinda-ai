@@ -1,5 +1,17 @@
 from config import NULL_COMMAND, AI_MODEL
+from executor import SystemTerminal
+from voice import HyprYapHandling
 
+'''
+This is a class for the HyprInstructor to return
+'''
+class HyprInstructionResult:
+    def __init__(self, speech, recursive = None, info = None, command = NULL_COMMAND) -> None:
+        self.parent = parent
+        self.command = command
+        self.speech = speech
+        self.recursive = recursive == "Y"
+        self.info = info
 '''
 This orchestrator class is crucial for the functionality of Hypr-AI, it is purposefully included to help the AI parse the text
 to then perform a command. Without this, the fundamental aspect of Hypr would be obsolete, control the system as it was intended.
@@ -11,28 +23,24 @@ class HyprInstructionOrchestrator:
     def __init__(self, ai_client ,prompt_path = None):
         self.client = ai_client
         self.EOC = "<END>" # End-Of-Command
-        self.prompt_path = prompt_path or "INSTRUCTION.md"
+        self.prompt_path = prompt_path or "./INSTRUCTION.md"
 
     def _load_prompt(self):
         with open(self.prompt_path, "r") as f:
-            return f.read().format(EOC = self.EOC) # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
+            return f.read().format(EOC = self.EOC, SYS_INFO = "") # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
+        #TODO: support sysinfo in the prompt to simplify
 
     def construe_response(self, raw_text):   
-        if "|" not in raw_text:
-            return {
-                "execute": NULL_COMMAND,
-                "speak": raw_text.strip()
-            }
-            
+        if self.EOC not in raw_text:
+            return HyprInstructionResult(speech=raw_text.strip())
         # Split on pipe to take command and speech parts
-        split_parts = raw_text.split(self.EOC, 1)
+        split_parts = raw_text.split(self.EOC, 3)
         
         system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
         assistant_speech_text = split_parts[1].replace("SPEECH:", "").strip()
-        return {      
-            "execute": system_shell_command,
-            "speak": assistant_speech_text
-        } 
+        recursive_action = split_parts[2].replace("RECURSIVE:", "").strip()
+        recursive_info = split_parts[3].replace("INFO:", "").strip()
+        return HyprInstructionResult(speech=assistant_speech_text, command=system_shell_command, recursive=recursive_action, info=recursive_info)
         
     def _hypr_orchestra_unit(self, user_input):
         try:
@@ -54,11 +62,42 @@ class HyprInstructionOrchestrator:
             return construed_content
         
         except Exception as e:
-            return {
-            "execute": NULL_COMMAND,
-            "speak": f"Brain Error: {str(e)}"
-            }
+            return HyprInstructionResult(speech="An Error Had Uccured. pls help.")
+        #Return error dict with NULL_COMMAND <-- opipoy here... i dont see why you need to do it like that :/ (still kept the NULL_COMMAND, just moved it to class ^^^)
+        # Alternative solution:
+        # make a log class, that will capture and log errors etc.
         
-        #Return error dict with NULL_COMMAND
-        
-        
+'''
+This class is made to handle the result from HyprInstructor
+'''
+class HandleHyprResult:
+
+    def __init__(self, result:HyprInstructionResult, yap_model:HyprYapHandling, terminal:SystemTerminal, orcastra:HyprInstructionOrchestrator, session_path:str|None = None) -> None:
+        self.session_path = session_path or "./SESSION.md"
+        self.result = result
+        self.yap_model = yap_model
+        self.terminal = terminal
+        self.orcastra = orcastra
+
+
+    def _execute_command(self, command:str):
+        #TODO: ask the user if procced
+        return self.terminal.run_command(command)
+
+
+    def handle_result(self, result:HyprInstructionResult):
+        output = None
+
+        self._speak(result.speech)
+        if result.command != None:
+            output = self._execute_command(result.command)
+
+        if result.recursive:
+            with open(self.session_path, "r") as f:
+                session_prompt = f.read()
+            session_prompt.format(INFO = result.info, COMMAND=result.command, OUTPUT=output or "No Command Sent")
+            self.handle_result(self.orcastra.construe_response(session_prompt))
+
+
+    def _speak(self, speech:str):
+        self.yap_model.stream_vocal_synthesis(speech)
