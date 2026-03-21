@@ -8,12 +8,14 @@ to then perform a command. Without this, the fundamental aspect of Hypr would be
 
 class HyprInstructionOrchestrator:
 
-    def __init__(self,system_path, ai_client):
+    def __init__(self, ai_client ,prompt_path = None):
         self.client = ai_client
         self.EOC = "<END>" # End-Of-Command
-        self.system_path = system_path or "./INSTRUCTION.md"
-        with open(self.system_path, "r") as f:
-            self.system = f.read().format(EOC = self.EOC)
+        self.prompt_path = prompt_path or "INSTRUCTION.md"
+
+    def _load_prompt(self):
+        with open(self.prompt_path, "r") as f:
+            return f.read().format(EOC = self.EOC) # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
 
     def construe_response(self, raw_text):   
         if "|" not in raw_text:
@@ -34,11 +36,11 @@ class HyprInstructionOrchestrator:
         
     def _hypr_orchestra_unit(self, user_input):
         try:
-           
+            sys_prompt = self._load_prompt()
             actual_answer = self.client.models.generate_content(
                 model=AI_MODEL,
                 contents=user_input,
-                config={"system_instruction": self.system}
+                config={"system_instruction": sys_prompt}
             )            
             #Just in case API does not return actual input
             full_hypr_text = getattr(actual_answer, "text", "") or ""
