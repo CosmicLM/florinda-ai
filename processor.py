@@ -7,9 +7,14 @@ to then perform a command. Without this, the fundamental aspect of Hypr would be
 '''
 
 class HyprInstructionOrchestrator:
-    def __init__(self,ai_client):
+
+    def __init__(self,system_path, ai_client):
         self.client = ai_client
-            
+        self.EOC = "<END>" # End-Of-Command
+        self.system_path = system_path or "./INSTRUCTION.md"
+        with open(self.system_path, "r") as f:
+            self.system = f.read().format(EOC = self.EOC)
+
     def construe_response(self, raw_text):   
         if "|" not in raw_text:
             return {
@@ -18,7 +23,7 @@ class HyprInstructionOrchestrator:
             }
             
         # Split on pipe to take command and speech parts
-        split_parts = raw_text.split("|", 1)
+        split_parts = raw_text.split(self.EOC, 1)
         
         system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
         assistant_speech_text = split_parts[1].replace("SPEECH:", "").strip()
@@ -33,11 +38,8 @@ class HyprInstructionOrchestrator:
             actual_answer = self.client.models.generate_content(
                 model=AI_MODEL,
                 contents=user_input,
-                config={
-                    "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
-                }
-            )       
-            
+                config={"system_instruction": self.system}
+            )            
             #Just in case API does not return actual input
             full_hypr_text = getattr(actual_answer, "text", "") or ""
             
