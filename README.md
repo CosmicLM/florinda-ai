@@ -48,12 +48,12 @@ the ai can call itself again in a Recursive creating a Session
 
 To Change The Prompts Of The AI You Can:
 - INSTRUCTION.md -> this is the system prompt of the AI, uses:
-$EOC -> End-Of-Command - will use it as a seperator for your commands
-$SYS_INFO -> System-Information - will replace it will all the basic info of the system so no unneceserry recursions will be used
+  - $EOC -> End-Of-Command - will use it as a seperator for your commands
+  - $SYS_INFO -> System-Information - will replace it will all the basic info of the system so no unneceserry recursions will be used
 - SESSION.md -> at each Recursion of the AI it will run this prompt as the "user prompt"
-$INFO -> The Information From The Prev Session
-$COMMAND -> The Command Excecuted In The Prev Session
-$OUTPUT -> The Output Of That Command
+  - $INFO -> The Information From The Prev Session
+  - $COMMAND -> The Command Excecuted In The Prev Session
+  - $OUTPUT -> The Output Of That Command
 
 </details>
 
