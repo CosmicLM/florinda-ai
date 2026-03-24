@@ -2,6 +2,7 @@ from config import NULL_COMMAND, AI_MODEL
 from executor import SystemTerminal
 from voice import HyprYapHandling
 from string import Template
+from termcolor import colored
 
 '''
 This is a class for the HyprInstructor to return
@@ -31,7 +32,6 @@ class HyprInstructionOrchestrator:
         #TODO: support sysinfo in the prompt to simplify
 
     def construe_response(self, raw_text):   
-        print(raw_text)
         if self.EOC not in raw_text:
             return HyprInstructionResult(speech=raw_text.strip())
         # Split on pipe to take command and speech parts
@@ -80,11 +80,23 @@ class HandleHyprResult:
         self.yap_model = yap_model
         self.terminal = terminal
         self.orcastra = orcastra
+        self.execute_all_commands = False
 
 
     def _execute_command(self, command:str):
-        #TODO: ask the user if procced
-        return self.terminal.run_command(command)
+
+        if self.execute_all_commands:
+            answer = "Y"
+        else:
+            answer = input(f"The AI Asks Permission To Run Command:\n{colored(command, 'red')}\nProcced? [All/Y/n] ")
+
+        if answer == "All":
+            self.execute_all_commands = True
+        if answer == "Y" or self.execute_all_commands:
+            print(colored("Excecuting The Following Command:\n" + colored(command, 'dark_grey')))
+            return self.terminal.run_command(command)
+        else:
+            return "User Decided Not To Excecute Command"
 
 
     def _handle_result(self, result:HyprInstructionResult):

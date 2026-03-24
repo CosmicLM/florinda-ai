@@ -5,9 +5,11 @@ from config import API_KEY, VOICE_MODEL, DEBUG
 from voice import HyprYapHandling
 from processor import HandleHyprResult, HyprInstructionOrchestrator, HyprInstructionResult
 from executor import SystemTerminal
+from colorama import init
 
 
 if __name__ == "__main__":
+    init()
     client = genai.Client(api_key=API_KEY)
     processor = HyprInstructionOrchestrator(client)
     core = HyprYapHandling(VOICE_MODEL)
