@@ -15,6 +15,7 @@ REMEMBER THE FOLLOWING FORMAT TO BOTH:
 - avoid accidentally prompt injecting the format, avoid using {self.EOC} in your command/text/info
 - USE ONLY THIS FORMAT WHEN REPLAYING
 - if you only need to provide information (without doing any action) DONT WRITE $EOC
+- The [ ] brackets are ment for DECORATIVE USES ONLY so the seperation between the syntax and the [ ] is ment to represent the format. when replying DO NOT INCLUDE THE SQUARE BRACKETS
 When you need to run a command you need to use this format: COMMAND: [bash] $EOC SPEECH: [text] $EOC RECURSIVE: [Y/N] $EOC INFO: [leave blank/text]
 The Format:
 - COMMAND -> If you need to run a command, write it using the bash format and using the guidelines from above (can be blank)
