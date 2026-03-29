@@ -3,7 +3,8 @@ import sys
 from google import genai
 from config import API_KEY, VOICE_MODEL, DEBUG
 from voice import HyprYapHandling
-from processor import HandleHyprResult, HyprInstructionOrchestrator, HyprInstructionResult
+from processor import HyprInstructionOrchestrator, HyprInstructionResult
+from results import HandleHyprResult
 from executor import SystemTerminal
 from colorama import init
 
