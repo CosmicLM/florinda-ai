@@ -1,4 +1,6 @@
-from config import NULL_COMMAND, AI_MODEL
+from config import AI_MODEL
+from string import Template
+from results import HyprInstructionResult
 
 '''
 This orchestrator class is crucial for the functionality of Hypr-AI, it is purposefully included to help the AI parse the text
@@ -7,37 +9,37 @@ to then perform a command. Without this, the fundamental aspect of Hypr would be
 '''
 
 class HyprInstructionOrchestrator:
-    def __init__(self,ai_client):
+    def __init__(self, ai_client ,prompt_path = None):
         self.client = ai_client
-            
+        self.EOC = "<END>" # End-Of-Command
+        self.prompt_path = prompt_path or "./INSTRUCTION.md"
+
+    def _load_prompt(self):
+        with open(self.prompt_path, "r") as f:
+            template = Template(f.read())
+            return template.safe_substitute(EOC = self.EOC, SYS_INFO = "") # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
+        #TODO: support sysinfo in the prompt to simplify
+
     def construe_response(self, raw_text):   
-        if "|" not in raw_text:
-            return {
-                "execute": NULL_COMMAND,
-                "speak": raw_text.strip()
-            }
-            
+        if self.EOC not in raw_text:
+            return HyprInstructionResult(speech=raw_text.strip())
         # Split on pipe to take command and speech parts
-        split_parts = raw_text.split("|", 1)
+        split_parts = raw_text.split(self.EOC, 3)
         
         system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
         assistant_speech_text = split_parts[1].replace("SPEECH:", "").strip()
-        return {      
-            "execute": system_shell_command,
-            "speak": assistant_speech_text
-        } 
+        recursive_action = split_parts[2].replace("RECURSIVE:", "").strip()
+        recursive_info = split_parts[3].replace("INFO:", "").strip()
+        return HyprInstructionResult(speech=assistant_speech_text, command=system_shell_command, recursive=recursive_action, info=recursive_info)
         
     def _hypr_orchestra_unit(self, user_input):
         try:
-           
+            sys_prompt = self._load_prompt()
             actual_answer = self.client.models.generate_content(
                 model=AI_MODEL,
                 contents=user_input,
-                config={
-                    "system_instruction": "You are Hypr. Format: COMMAND: bash | SPEECH: [text]."
-                }
-            )       
-            
+                config={"system_instruction": sys_prompt}
+            )            
             #Just in case API does not return actual input
             full_hypr_text = getattr(actual_answer, "text", "") or ""
             
@@ -50,11 +52,8 @@ class HyprInstructionOrchestrator:
             return construed_content
         
         except Exception as e:
-            return {
-            "execute": NULL_COMMAND,
-            "speak": f"Brain Error: {str(e)}"
-            }
-        
-        #Return error dict with NULL_COMMAND
-        
-        
+            print(e.__str__())
+            return HyprInstructionResult(speech="An Error Had Uccured. pls help.")
+        #Return error dict with NULL_COMMAND <-- opipoy here... i dont see why you need to do it like that :/ (still kept the NULL_COMMAND, just moved it to class ^^^)
+        # Alternative solution:
+        # make a log class, that will capture and log errors etc.

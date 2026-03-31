@@ -1,20 +1,24 @@
+import pdb
 import sys
 from google import genai
 from config import API_KEY, VOICE_MODEL, DEBUG
 from voice import HyprYapHandling
-from processor import HyprInstructionOrchestrator
+from processor import HyprInstructionOrchestrator, HyprInstructionResult
+from results import HandleHyprResult
+from executor import SystemTerminal
+from colorama import init
 
 
 if __name__ == "__main__":
+    init()
     client = genai.Client(api_key=API_KEY)
     processor = HyprInstructionOrchestrator(client)
     core = HyprYapHandling(VOICE_MODEL)
+    terminal = SystemTerminal()
     
     user_input = " ".join(sys.argv[1:])
     if user_input.strip():
         result = processor._hypr_orchestra_unit(user_input)
+        handled_result = HandleHyprResult(result, yap_model=core, terminal=terminal, orcastra=processor)
         
-        if DEBUG:
-            print(result)
-        
-        core.stream_vocal_synthesis(result["speak"])
+        handled_result.handle_result()
