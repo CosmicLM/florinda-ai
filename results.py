@@ -1,8 +1,14 @@
-from processor import *
+from __future__ import annotations
+from string import Template
+from typing import TYPE_CHECKING
+
 from executor import SystemTerminal
 from voice import HyprYapHandling
 from termcolor import colored
 from config import NULL_COMMAND
+
+if TYPE_CHECKING:
+    from processor import HyprInstructionOrchestrator
 
 '''
 This is a class for the HyprInstructor to return
