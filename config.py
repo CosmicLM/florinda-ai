@@ -34,6 +34,24 @@ class HyprSettings(BaseModel):
     log_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/hypr-ai/hypr-ai.log")
     state_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/hypr-ai/state.json")
 
+    # --- Always-on service: speech-to-text ---
+    stt_model: str = Field(default="small.en", description="HYPR_STT_MODEL")
+    stt_device: str = Field(default="cpu", description="HYPR_STT_DEVICE")
+
+    # --- Always-on service: screen watching ---
+    screen_watch_enabled: bool = Field(default=True, description="HYPR_SCREEN_WATCH_ENABLED")
+    screen_watch_interval_s: float = Field(default=4.0, description="HYPR_SCREEN_WATCH_INTERVAL_S")
+    sys_info_max_chars: int = Field(default=4000, description="HYPR_SYS_INFO_MAX_CHARS")
+
+    # --- Always-on service: push-to-talk ---
+    ptt_min_hold_ms: int = Field(default=350, description="HYPR_PTT_MIN_HOLD_MS")
+    ptt_max_recording_s: float = Field(default=30.0, description="HYPR_PTT_MAX_RECORDING_S")
+    ptt_socket_path: Path = Field(
+        default_factory=lambda: Path.home() / ".local/share/hypr-ai/ptt.sock"
+    )
+    pending_confirm_timeout_s: float = Field(default=60.0, description="HYPR_CONFIRM_TIMEOUT_S")
+    mic_source: Optional[str] = Field(default=None, description="HYPR_MIC_SOURCE")
+
 
 class ConfigVault:
     """Loads, validates, and exposes Hypr's runtime configuration."""
@@ -50,9 +68,34 @@ class ConfigVault:
                 voice_model=os.getenv("DEFAULT_VOICE_MODEL"),
                 ai_model_light=os.getenv("HYPR_AI_MODEL_LIGHT"),
                 debug=os.getenv("HYPR_DEBUG", "false").lower() == "true",
+                **self._service_overrides(),
             )
         except ValidationError as error:
             raise ConfigurationError(self._summarize(error)) from error
+
+    @staticmethod
+    def _service_overrides() -> dict:
+        """Env overrides for the always-on service — omitted keys fall back to HyprSettings defaults."""
+        overrides = {}
+        if (v := os.getenv("HYPR_STT_MODEL")) is not None:
+            overrides["stt_model"] = v
+        if (v := os.getenv("HYPR_STT_DEVICE")) is not None:
+            overrides["stt_device"] = v
+        if (v := os.getenv("HYPR_SCREEN_WATCH_ENABLED")) is not None:
+            overrides["screen_watch_enabled"] = v.lower() == "true"
+        if (v := os.getenv("HYPR_SCREEN_WATCH_INTERVAL_S")) is not None:
+            overrides["screen_watch_interval_s"] = float(v)
+        if (v := os.getenv("HYPR_SYS_INFO_MAX_CHARS")) is not None:
+            overrides["sys_info_max_chars"] = int(v)
+        if (v := os.getenv("HYPR_PTT_MIN_HOLD_MS")) is not None:
+            overrides["ptt_min_hold_ms"] = int(v)
+        if (v := os.getenv("HYPR_PTT_MAX_RECORDING_S")) is not None:
+            overrides["ptt_max_recording_s"] = float(v)
+        if (v := os.getenv("HYPR_CONFIRM_TIMEOUT_S")) is not None:
+            overrides["pending_confirm_timeout_s"] = float(v)
+        if (v := os.getenv("HYPR_MIC_SOURCE")) is not None:
+            overrides["mic_source"] = v
+        return overrides
 
     @staticmethod
     def _summarize(error: ValidationError) -> str:
