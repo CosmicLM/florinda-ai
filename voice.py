@@ -1,17 +1,35 @@
+"""voice.py — The Voice: streams text to a local Piper TTS + aplay pipeline without blocking."""
 import subprocess
-from config import DEBUG
-class HyprYapHandling:
-    def __init__(self, a_voz_model,):
-        self.voice_model = a_voz_model
-        commandante_tts_command = f"piper-tts --model {self.voice_model} --output_raw"
-        gaita_output_command = "aplay -r 22050 -f S16_LE -t raw"
-        self.piper_cmd = f"{commandante_tts_command} | {gaita_output_command}"
-        
-        
-#Standard engineering flow for in case the speech processes the text from the piper module
-    def stream_vocal_synthesis(self, text):
+
+
+class AudioEngine:
+    """The Voice: converts text to speech via a local Piper TTS process."""
+
+    def __init__(self, voice_model: str, debug: bool = False) -> None:
+        self._voice_model = voice_model
+        self._debug = debug
+
+    def stream_vocal_synthesis(self, text: str) -> None:
+        """Speak `text` in the background; returns immediately (non-blocking).
+
+        WHY: `text` originates from the AI and must never be interpolated into
+        a shell string (that was the old injection vector: an `echo "{text}"`
+        f-string). It's written to the pipeline's stdin instead, so shell
+        metacharacters in `text` are inert.
+        """
         if not text or not text.strip():
             return
-        stderr = None if DEBUG else subprocess.DEVNULL
-        subprocess.Popen(f'echo "{text}" | {self.piper_cmd}', shell=True, stderr=stderr)
-            
+        pipeline = self._spawn_pipeline()
+        pipeline.stdin.write((text + "\n").encode())
+        pipeline.stdin.close()
+
+    def _spawn_pipeline(self) -> subprocess.Popen:
+        piper_cmd = f"piper-tts --model {self._voice_model} --output_raw"
+        aplay_cmd = "aplay -r 22050 -f S16_LE -t raw"
+        stderr = None if self._debug else subprocess.DEVNULL
+        return subprocess.Popen(
+            f"{piper_cmd} | {aplay_cmd}",
+            shell=True,
+            stdin=subprocess.PIPE,
+            stderr=stderr,
+        )

@@ -1,0 +1,11 @@
+python-dotenv>=1.2,<2
+google-genai>=1.62,<2
+pydantic>=2.12,<3
+colorama>=0.4.6,<1
+termcolor>=3.3,<4
+
+# Part B — screen_observer.py (stretch goal)
+numpy
+opencv-python-headless
+pytesseract
+pillow

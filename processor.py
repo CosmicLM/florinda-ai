@@ -1,59 +1,89 @@
+"""processor.py — The Brain: turns user input into a structured instruction from the AI."""
 import logging
-from config import AI_MODEL
+from dataclasses import dataclass
 from string import Template
-from results import HyprInstructionResult
+from typing import Literal, Optional
+
+from config import NULL_COMMAND
 
 logger = logging.getLogger(__name__)
 
-'''
-This orchestrator class is crucial for the functionality of Hypr-AI, it is purposefully included to help the AI parse the text
-to then perform a command. Without this, the fundamental aspect of Hypr would be obsolete, control the system as it was intended.
- 
-'''
+DEFAULT_PROMPT_PATH = "./INSTRUCTION.md"
+END_OF_COMMAND_TOKEN = "<END>"
 
-class HyprInstructionOrchestrator:
-    def __init__(self, ai_client ,prompt_path = None):
-        self.client = ai_client
-        self.EOC = "<END>" # End-Of-Command
-        self.prompt_path = prompt_path or "./INSTRUCTION.md"
 
-    def _load_prompt(self):
-        with open(self.prompt_path, "r") as f:
-            template = Template(f.read())
-            return template.safe_substitute(EOC = self.EOC, SYS_INFO = "") # inside the instruction, theres an {EOC} which will be replaced with the current class end of file
-        #TODO: support sysinfo in the prompt to simplify
+@dataclass(frozen=True)
+class ParsedInstruction:
+    """One AI turn's structured intent.
 
-    def construe_response(self, raw_text):   
-        if self.EOC not in raw_text:
-            return HyprInstructionResult(speech=raw_text.strip())
-        # Split on pipe to take command and speech parts
-        split_parts = raw_text.split(self.EOC, 3)
-        
-        system_shell_command = split_parts[0].replace("COMMAND:", "").strip()
-        assistant_speech_text = split_parts[1].replace("SPEECH:", "").strip()
-        recursive_action = split_parts[2].replace("RECURSIVE:", "").strip()
-        recursive_info = split_parts[3].replace("INFO:", "").strip()
-        return HyprInstructionResult(speech=assistant_speech_text, command=system_shell_command, recursive=recursive_action, info=recursive_info)
-        
-    def _hypr_orchestra_unit(self, user_input):
+    WHY: the wire format is COMMAND:$EOC SPEECH:$EOC RECURSIVE:$EOC INFO:$EOC —
+    this dataclass is the single seam between that string protocol and the rest
+    of Hypr, so nothing downstream re-parses raw AI text.
+    """
+    speech: str
+    command: str = NULL_COMMAND
+    recursive: bool = False
+    info: Optional[str] = None
+
+
+class PromptProcessor:
+    """The Brain: sends prompts to Gemini and hands back a ParsedInstruction."""
+
+    def __init__(
+        self,
+        ai_client,
+        ai_model: str,
+        ai_model_light: Optional[str] = None,
+        prompt_path: str = DEFAULT_PROMPT_PATH,
+    ) -> None:
+        self._client = ai_client
+        self._ai_model = ai_model
+        self._ai_model_light = ai_model_light or ai_model
+        self._prompt_path = prompt_path
+
+    def generate_instruction(
+        self, user_input: str, tier: Literal["light", "deep"] = "light"
+    ) -> ParsedInstruction:
+        """Query the AI for `user_input`; a failed turn still returns something speakable."""
         try:
-            sys_prompt = self._load_prompt()
-            actual_answer = self.client.models.generate_content(
-                model=AI_MODEL,
-                contents=user_input,
-                config={"system_instruction": sys_prompt}
-            )            
-            #Just in case API does not return actual input
-            full_hypr_text = getattr(actual_answer, "text", "") or ""
-            
-             #Set a guard clause against empty API responses
-            if not full_hypr_text.strip():
-                 full_hypr_text = ""
-                
-            #Delegate parsing to handle all cases including empty input
-            construed_content = self.construe_response(full_hypr_text)
-            return construed_content
-        
+            raw_text = self._query_model(user_input, tier)
+            return self._parse_response(raw_text)
         except Exception:
             logger.exception("Hypr orchestration failed for input: %r", user_input)
-            return HyprInstructionResult(speech="An Error Had Uccured. pls help.")
+            return ParsedInstruction(speech="An error occurred. Please check the logs.")
+
+    def _query_model(self, user_input: str, tier: Literal["light", "deep"]) -> str:
+        model = self._ai_model if tier == "deep" else self._ai_model_light
+        system_prompt = self._load_system_prompt()
+        response = self._client.models.generate_content(
+            model=model,
+            contents=user_input,
+            config={"system_instruction": system_prompt},
+        )
+        return getattr(response, "text", "") or ""
+
+    def _load_system_prompt(self) -> str:
+        with open(self._prompt_path, "r") as prompt_file:
+            template = Template(prompt_file.read())
+        return template.safe_substitute(EOC=END_OF_COMMAND_TOKEN, SYS_INFO="")
+
+    def _parse_response(self, raw_text: str) -> ParsedInstruction:
+        """Delegate field-splitting to a helper so this stays a pure dispatcher."""
+        if END_OF_COMMAND_TOKEN not in raw_text:
+            return ParsedInstruction(speech=raw_text.strip())
+        command, speech, recursive, info = self._split_instruction_fields(raw_text)
+        return ParsedInstruction(
+            speech=speech,
+            command=command or NULL_COMMAND,
+            recursive=recursive == "Y",
+            info=info,
+        )
+
+    @staticmethod
+    def _split_instruction_fields(raw_text: str) -> tuple[str, str, str, str]:
+        parts = raw_text.split(END_OF_COMMAND_TOKEN, 3)
+        command = parts[0].replace("COMMAND:", "").strip()
+        speech = parts[1].replace("SPEECH:", "").strip()
+        recursive = parts[2].replace("RECURSIVE:", "").strip()
+        info = parts[3].replace("INFO:", "").strip()
+        return command, speech, recursive, info
