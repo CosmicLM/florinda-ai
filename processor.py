@@ -1,6 +1,9 @@
+import logging
 from config import AI_MODEL
 from string import Template
 from results import HyprInstructionResult
+
+logger = logging.getLogger(__name__)
 
 '''
 This orchestrator class is crucial for the functionality of Hypr-AI, it is purposefully included to help the AI parse the text
@@ -51,9 +54,6 @@ class HyprInstructionOrchestrator:
             construed_content = self.construe_response(full_hypr_text)
             return construed_content
         
-        except Exception as e:
-            print(e.__str__())
+        except Exception:
+            logger.exception("Hypr orchestration failed for input: %r", user_input)
             return HyprInstructionResult(speech="An Error Had Uccured. pls help.")
-        #Return error dict with NULL_COMMAND <-- opipoy here... i dont see why you need to do it like that :/ (still kept the NULL_COMMAND, just moved it to class ^^^)
-        # Alternative solution:
-        # make a log class, that will capture and log errors etc.
