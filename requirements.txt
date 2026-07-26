@@ -9,3 +9,6 @@ numpy
 opencv-python-headless
 pytesseract
 pillow
+
+# Always-on service — voice_input.py (speech-to-text)
+faster-whisper>=1.2,<2
