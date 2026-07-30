@@ -11,19 +11,19 @@ NULL_COMMAND = "null"  # AI protocol's "no action" sentinel — not env-derived,
 
 
 class ConfigurationError(Exception):
-    """Raised when required Hypr environment configuration is missing or invalid.
+    """Raised when required Florinda environment configuration is missing or invalid.
 
-    WHY: config.py must stay a pure library — only hypr_daemon.py (the entrypoint)
+    WHY: config.py must stay a pure library — only flora_daemon.py (the entrypoint)
     is allowed to print to the user and call sys.exit(). This lets any module
     import config.py without risking process termination as a side effect.
     """
 
 
-class HyprSettings(BaseModel):
-    """Structural contract for Hypr's environment-derived configuration."""
+class FloraSettings(BaseModel):
+    """Structural contract for Florinda's environment-derived configuration."""
     model_config = ConfigDict(frozen=True)
 
-    api_key: str = Field(min_length=1, description="HYPR_API_KEY")
+    api_key: str = Field(min_length=1, description="FLORA_API_KEY")
     voice_model: Optional[str] = Field(default=None, description="DEFAULT_VOICE_MODEL")
     ai_model: str = Field(default="gemini-3-flash-preview")
     ai_model_light: Optional[str] = Field(
@@ -31,43 +31,119 @@ class HyprSettings(BaseModel):
         description="Cheaper/faster model for high-volume tasks (falls back to ai_model)",
     )
     debug: bool = Field(default=False)
-    log_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/hypr-ai/hypr-ai.log")
-    state_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/hypr-ai/state.json")
+    log_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/flora-ai.log")
+    state_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/state.json")
 
     # --- Always-on service: speech-to-text ---
-    stt_model: str = Field(default="small.en", description="HYPR_STT_MODEL")
-    stt_device: str = Field(default="cpu", description="HYPR_STT_DEVICE")
+    stt_model: str = Field(default="small.en", description="FLORA_STT_MODEL")
+    stt_device: str = Field(default="cpu", description="FLORA_STT_DEVICE")
 
     # --- Always-on service: screen watching ---
-    screen_watch_enabled: bool = Field(default=True, description="HYPR_SCREEN_WATCH_ENABLED")
-    screen_watch_interval_s: float = Field(default=4.0, description="HYPR_SCREEN_WATCH_INTERVAL_S")
-    sys_info_max_chars: int = Field(default=4000, description="HYPR_SYS_INFO_MAX_CHARS")
+    screen_watch_enabled: bool = Field(default=True, description="FLORA_SCREEN_WATCH_ENABLED")
+    screen_watch_interval_s: float = Field(default=4.0, description="FLORA_SCREEN_WATCH_INTERVAL_S")
+    sys_info_max_chars: int = Field(default=4000, description="FLORA_SYS_INFO_MAX_CHARS")
 
     # --- Always-on service: push-to-talk ---
-    ptt_min_hold_ms: int = Field(default=350, description="HYPR_PTT_MIN_HOLD_MS")
-    ptt_max_recording_s: float = Field(default=30.0, description="HYPR_PTT_MAX_RECORDING_S")
+    ptt_min_hold_ms: int = Field(default=350, description="FLORA_PTT_MIN_HOLD_MS")
+    ptt_max_recording_s: float = Field(default=30.0, description="FLORA_PTT_MAX_RECORDING_S")
     ptt_socket_path: Path = Field(
-        default_factory=lambda: Path.home() / ".local/share/hypr-ai/ptt.sock"
+        default_factory=lambda: Path.home() / ".local/share/flora-ai/ptt.sock"
     )
-    pending_confirm_timeout_s: float = Field(default=60.0, description="HYPR_CONFIRM_TIMEOUT_S")
-    mic_source: Optional[str] = Field(default=None, description="HYPR_MIC_SOURCE")
+    pending_confirm_timeout_s: float = Field(default=60.0, description="FLORA_CONFIRM_TIMEOUT_S")
+    mic_source: Optional[str] = Field(default=None, description="FLORA_MIC_SOURCE")
+
+    # --- Always-on service: status broadcasting + audio cues ---
+    ptt_listen_sound: Optional[str] = Field(
+        default="/usr/share/sounds/Pop/stereo/notification/message.oga",
+        description="FLORA_PTT_LISTEN_SOUND — empty/unset disables the cue",
+    )
+    ptt_talking_sound: Optional[str] = Field(
+        default="/usr/share/sounds/Pop/stereo/notification/system-ready.oga",
+        description="FLORA_PTT_TALKING_SOUND — plays when Florinda stops thinking and "
+        "starts speaking its answer; empty/unset disables the cue",
+    )
+    status_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/status.json")
+    waybar_signal_num: int = Field(default=8, description="FLORA_WAYBAR_SIGNAL_NUM")
+
+    # --- Always-on service: conversation memory ---
+    memory_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/conversation.json")
+    memory_max_turns: int = Field(default=10, description="FLORA_MEMORY_MAX_TURNS")
+    memory_reset_after_s: float = Field(default=1800.0, description="FLORA_MEMORY_RESET_AFTER_S")
+
+    # --- Autonomous skills ---
+    skills_dir: Path = Field(default_factory=lambda: Path("./skills"))
+
+    # --- Local model (Ollama) for background jobs ---
+    local_model: str = Field(default="phi4-mini", description="FLORA_LOCAL_MODEL")
+    ollama_host: str = Field(default="http://localhost:11434", description="FLORA_OLLAMA_HOST")
+
+    # --- Offline fallback: main assistant degrades to a local Ollama model
+    # when Gemini can't be reached at all, instead of going silent ---
+    offline_fallback_enabled: bool = Field(default=True, description="FLORA_OFFLINE_FALLBACK_ENABLED")
+    offline_fallback_model: str = Field(default="llama3.1:8b", description="FLORA_OFFLINE_FALLBACK_MODEL")
+    # WHY this needs to be explicit: observed live — google-genai's Client
+    # defaults to timeout=None when no http_options are given, which httpx
+    # treats as "wait forever," not "use a sane default." Under a real
+    # "connected but no working internet" condition (packets vanish, no
+    # clean/instant refusal) that leaves Florinda hanging indefinitely before it
+    # ever gets the chance to detect failure and fall back to Ollama —
+    # exactly the reported symptom ("it doesn't use the offline model"),
+    # since it never actually got there. This bounds the worst case.
+    gemini_timeout_s: float = Field(default=10.0, description="FLORA_GEMINI_TIMEOUT_S")
+
+    # --- "Deep" tier reasoning via the user's own Claude subscription (claude_cli_backend.py) ---
+    use_claude_cli_for_deep: bool = Field(default=True, description="FLORA_USE_CLAUDE_CLI_FOR_DEEP")
+    claude_cli_timeout_s: float = Field(default=60.0, description="FLORA_CLAUDE_CLI_TIMEOUT_S")
+
+    # --- Web search (SearXNG, flora-ai's own container — see docker-compose.yml) ---
+    web_search_host: str = Field(default="http://127.0.0.1:8092", description="FLORA_WEB_SEARCH_HOST")
+
+    # --- Quantum-keyword screen watcher ---
+    quantum_watch_enabled: bool = Field(default=True, description="FLORA_QUANTUM_WATCH_ENABLED")
+    quantum_watch_keywords: list[str] = Field(default_factory=lambda: [
+        "quantum", "qubit", "qiskit", "superposition", "entanglement", "decoherence",
+        "hadamard", "bloch sphere", "quantum circuit", "quantum gate", "unitary",
+        "ansatz", "vqe", "qaoa", "hamiltonian", "pauli", "transpile", "statevector",
+    ])
+    quantum_watch_cooldown_s: float = Field(default=300.0, description="FLORA_QUANTUM_WATCH_COOLDOWN_S")
+
+    # --- System health watcher (memory/disk pressure that would degrade Florinda's own responsiveness) ---
+    system_health_cooldown_s: float = Field(default=1800.0, description="FLORA_SYSTEM_HEALTH_COOLDOWN_S")
+
+    # --- Periodic "check up on what I'm working on" watcher ---
+    check_in_enabled: bool = Field(default=True, description="FLORA_CHECK_IN_ENABLED")
+    check_in_cooldown_s: float = Field(default=1800.0, description="FLORA_CHECK_IN_COOLDOWN_S")
+
+    # --- Morning briefing: greeting + today's tasks + quantum news, once per day ---
+    morning_briefing_enabled: bool = Field(default=True, description="FLORA_MORNING_BRIEFING_ENABLED")
+
+    # --- Knowledge base (read-only reference) ---
+    knowledge_base_path: Path = Field(
+        default_factory=lambda: Path.home() / "Documents/Research/quantum-knowledge-base"
+    )
+
+    # --- Always-on service: human-readable activity transcript ---
+    activity_log_path: Path = Field(
+        default_factory=lambda: Path.home() / ".local/share/flora-ai/activity.log"
+    )
+    activity_log_max_lines: int = Field(default=2000, description="FLORA_ACTIVITY_LOG_MAX_LINES")
 
 
 class ConfigVault:
-    """Loads, validates, and exposes Hypr's runtime configuration."""
+    """Loads, validates, and exposes Florinda's runtime configuration."""
 
     def __init__(self, env_file: Optional[str] = None) -> None:
         load_dotenv(env_file)
-        self.settings: HyprSettings = self._load_settings()
+        self.settings: FloraSettings = self._load_settings()
         self._prepare_logging()
 
-    def _load_settings(self) -> HyprSettings:
+    def _load_settings(self) -> FloraSettings:
         try:
-            return HyprSettings(
-                api_key=os.getenv("HYPR_API_KEY") or "",
+            return FloraSettings(
+                api_key=os.getenv("FLORA_API_KEY") or "",
                 voice_model=os.getenv("DEFAULT_VOICE_MODEL"),
-                ai_model_light=os.getenv("HYPR_AI_MODEL_LIGHT"),
-                debug=os.getenv("HYPR_DEBUG", "false").lower() == "true",
+                ai_model_light=os.getenv("FLORA_AI_MODEL_LIGHT"),
+                debug=os.getenv("FLORA_DEBUG", "false").lower() == "true",
                 **self._service_overrides(),
             )
         except ValidationError as error:
@@ -75,32 +151,72 @@ class ConfigVault:
 
     @staticmethod
     def _service_overrides() -> dict:
-        """Env overrides for the always-on service — omitted keys fall back to HyprSettings defaults."""
+        """Env overrides for the always-on service — omitted keys fall back to FloraSettings defaults."""
         overrides = {}
-        if (v := os.getenv("HYPR_STT_MODEL")) is not None:
+        if (v := os.getenv("FLORA_STT_MODEL")) is not None:
             overrides["stt_model"] = v
-        if (v := os.getenv("HYPR_STT_DEVICE")) is not None:
+        if (v := os.getenv("FLORA_STT_DEVICE")) is not None:
             overrides["stt_device"] = v
-        if (v := os.getenv("HYPR_SCREEN_WATCH_ENABLED")) is not None:
+        if (v := os.getenv("FLORA_SCREEN_WATCH_ENABLED")) is not None:
             overrides["screen_watch_enabled"] = v.lower() == "true"
-        if (v := os.getenv("HYPR_SCREEN_WATCH_INTERVAL_S")) is not None:
+        if (v := os.getenv("FLORA_SCREEN_WATCH_INTERVAL_S")) is not None:
             overrides["screen_watch_interval_s"] = float(v)
-        if (v := os.getenv("HYPR_SYS_INFO_MAX_CHARS")) is not None:
+        if (v := os.getenv("FLORA_SYS_INFO_MAX_CHARS")) is not None:
             overrides["sys_info_max_chars"] = int(v)
-        if (v := os.getenv("HYPR_PTT_MIN_HOLD_MS")) is not None:
+        if (v := os.getenv("FLORA_PTT_MIN_HOLD_MS")) is not None:
             overrides["ptt_min_hold_ms"] = int(v)
-        if (v := os.getenv("HYPR_PTT_MAX_RECORDING_S")) is not None:
+        if (v := os.getenv("FLORA_PTT_MAX_RECORDING_S")) is not None:
             overrides["ptt_max_recording_s"] = float(v)
-        if (v := os.getenv("HYPR_CONFIRM_TIMEOUT_S")) is not None:
+        if (v := os.getenv("FLORA_CONFIRM_TIMEOUT_S")) is not None:
             overrides["pending_confirm_timeout_s"] = float(v)
-        if (v := os.getenv("HYPR_MIC_SOURCE")) is not None:
+        if (v := os.getenv("FLORA_MIC_SOURCE")) is not None:
             overrides["mic_source"] = v
+        if (v := os.getenv("FLORA_PTT_LISTEN_SOUND")) is not None:
+            overrides["ptt_listen_sound"] = v or None
+        if (v := os.getenv("FLORA_PTT_TALKING_SOUND")) is not None:
+            overrides["ptt_talking_sound"] = v or None
+        if (v := os.getenv("FLORA_WAYBAR_SIGNAL_NUM")) is not None:
+            overrides["waybar_signal_num"] = int(v)
+        if (v := os.getenv("FLORA_MEMORY_MAX_TURNS")) is not None:
+            overrides["memory_max_turns"] = int(v)
+        if (v := os.getenv("FLORA_MEMORY_RESET_AFTER_S")) is not None:
+            overrides["memory_reset_after_s"] = float(v)
+        if (v := os.getenv("FLORA_LOCAL_MODEL")) is not None:
+            overrides["local_model"] = v
+        if (v := os.getenv("FLORA_OLLAMA_HOST")) is not None:
+            overrides["ollama_host"] = v
+        if (v := os.getenv("FLORA_OFFLINE_FALLBACK_ENABLED")) is not None:
+            overrides["offline_fallback_enabled"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_OFFLINE_FALLBACK_MODEL")) is not None:
+            overrides["offline_fallback_model"] = v
+        if (v := os.getenv("FLORA_GEMINI_TIMEOUT_S")) is not None:
+            overrides["gemini_timeout_s"] = float(v)
+        if (v := os.getenv("FLORA_USE_CLAUDE_CLI_FOR_DEEP")) is not None:
+            overrides["use_claude_cli_for_deep"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_CLAUDE_CLI_TIMEOUT_S")) is not None:
+            overrides["claude_cli_timeout_s"] = float(v)
+        if (v := os.getenv("FLORA_QUANTUM_WATCH_ENABLED")) is not None:
+            overrides["quantum_watch_enabled"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_QUANTUM_WATCH_COOLDOWN_S")) is not None:
+            overrides["quantum_watch_cooldown_s"] = float(v)
+        if (v := os.getenv("FLORA_MORNING_BRIEFING_ENABLED")) is not None:
+            overrides["morning_briefing_enabled"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_ACTIVITY_LOG_MAX_LINES")) is not None:
+            overrides["activity_log_max_lines"] = int(v)
+        if (v := os.getenv("FLORA_WEB_SEARCH_HOST")) is not None:
+            overrides["web_search_host"] = v
+        if (v := os.getenv("FLORA_SYSTEM_HEALTH_COOLDOWN_S")) is not None:
+            overrides["system_health_cooldown_s"] = float(v)
+        if (v := os.getenv("FLORA_CHECK_IN_ENABLED")) is not None:
+            overrides["check_in_enabled"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_CHECK_IN_COOLDOWN_S")) is not None:
+            overrides["check_in_cooldown_s"] = float(v)
         return overrides
 
     @staticmethod
     def _summarize(error: ValidationError) -> str:
         fields = [".".join(str(p) for p in e["loc"]) for e in error.errors()]
-        return f"Invalid Hypr configuration for: {', '.join(fields)}"
+        return f"Invalid Florinda configuration for: {', '.join(fields)}"
 
     def _prepare_logging(self) -> None:
         self.settings.log_path.parent.mkdir(parents=True, exist_ok=True)

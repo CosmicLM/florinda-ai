@@ -12,3 +12,12 @@ pillow
 
 # Always-on service — voice_input.py (speech-to-text)
 faster-whisper>=1.2,<2
+
+# Always-on service — local_brain.py (Ollama client for background jobs)
+requests>=2.32,<3
+
+# web_clip.py (fetch a URL, convert to markdown)
+html2text>=2025.4,<2026
+
+# skill_manager.py (catches undefined-name bugs py_compile can't see)
+pyflakes>=3.4,<4
