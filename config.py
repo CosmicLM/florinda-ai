@@ -150,7 +150,8 @@ class FloraSettings(BaseModel):
 
     # --- Knowledge base (read-only reference) ---
     knowledge_base_path: Path = Field(
-        default_factory=lambda: Path.home() / "Documents/Research/quantum-knowledge-base"
+        default_factory=lambda: Path.home() / "Documents/Research/quantum-knowledge-base",
+        description="FLORA_KNOWLEDGE_BASE_PATH",
     )
 
     # --- Always-on service: human-readable activity transcript ---
@@ -277,6 +278,8 @@ class ConfigVault:
             overrides["check_in_enabled"] = v.lower() == "true"
         if (v := os.getenv("FLORA_CHECK_IN_COOLDOWN_S")) is not None:
             overrides["check_in_cooldown_s"] = float(v)
+        if (v := os.getenv("FLORA_KNOWLEDGE_BASE_PATH")) is not None:
+            overrides["knowledge_base_path"] = Path(v)
         return overrides
 
     @staticmethod

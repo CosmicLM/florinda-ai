@@ -119,6 +119,14 @@ venv/bin/python3 -m pip install -r requirements.txt
 
 ## 3. Configure `.env`
 
+**Prefer a GUI over hand-editing?** `venv/bin/python3 tools/settings_gui.py`
+opens a settings window for the AI provider/API keys, feature toggles
+(morning briefing, screen watching, quantum watcher, check-ins, offline
+fallback), and the two file paths worth pointing elsewhere (voice model,
+knowledge-base vault) — it edits `.env` directly and offers to restart
+`flora-daemon.service` for you on save. What follows is the same thing by
+hand, for anything the GUI doesn't cover yet or if you'd rather script it.
+
 Create `.env` in the project root. Pick **one** AI provider section below —
 you don't need all of them:
 
