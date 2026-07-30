@@ -65,7 +65,9 @@ _SYSTEM_PACKAGES = {
         # either — both compile from source on every install). base-devel
         # brings gcc/pkgconf; dbus's Arch package already ships its own dev
         # headers (unlike Debian/Fedora, which split them out separately).
-        "base-devel", "gobject-introspection",
+        # cairo is PyGObject's own build dependency (pulls in pycairo, which
+        # needs cairo's headers to compile) — same "no prebuilt wheel" story.
+        "base-devel", "gobject-introspection", "cairo",
     ],
     "apt": [
         "kitty", "alsa-utils", "tesseract-ocr", "tesseract-ocr-eng",
@@ -74,7 +76,7 @@ _SYSTEM_PACKAGES = {
         "lm-sensors", "grim", "python3-venv",
         # Same build-from-source deps as above, Debian/Ubuntu package names.
         "build-essential", "pkg-config", "python3-dev", "libdbus-1-dev",
-        "libglib2.0-dev", "libgirepository1.0-dev",
+        "libglib2.0-dev", "libgirepository1.0-dev", "libcairo2-dev",
     ],
     "dnf": [
         "kitty", "alsa-utils", "tesseract", "tesseract-langpack-eng", "gtk3",
@@ -82,7 +84,7 @@ _SYSTEM_PACKAGES = {
         "lm_sensors", "grim",
         # Same build-from-source deps as above, Fedora package names.
         "gcc", "pkgconf-pkg-config", "python3-devel", "dbus-devel",
-        "glib2-devel", "gobject-introspection-devel",
+        "glib2-devel", "gobject-introspection-devel", "cairo-devel",
     ],
 }
 
