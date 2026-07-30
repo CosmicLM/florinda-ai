@@ -10,18 +10,24 @@ c_if, the primitives import path): that list is deliberately small and
 can't cover every symbol in Qiskit. This is the fallback for anything else
 — search by keyword, or look up one specific dotted path.
 
-WHY this shells out to the quantum-projects venv (same reasoning as
-qiskit_runner.py) rather than importing qiskit directly: qiskit isn't
-installed in flora-ai's own venv, only in ~/Projects/quantum-projects/venv —
-this script runs in flora-ai's normal environment (same invocation
-convention as every other tool here) and delegates the actual introspection
-to a subprocess using that venv's interpreter.
+WHY this shells out to a separate Qiskit venv (same reasoning as
+qiskit_runner.py, see there for why this is configurable rather than a
+fixed path) rather than importing qiskit directly: qiskit isn't installed
+in flora-ai's own venv — this script runs in flora-ai's normal environment
+(same invocation convention as every other tool here) and delegates the
+actual introspection to a subprocess using that other venv's interpreter,
+default ~/Projects/quantum-projects/venv, override with
+FLORA_QISKIT_VENV_PYTHON.
 """
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-QUANTUM_VENV_PYTHON = Path.home() / "Projects/quantum-projects/venv/bin/python3"
+QUANTUM_VENV_PYTHON = Path(
+    os.environ.get("FLORA_QISKIT_VENV_PYTHON")
+    or (Path.home() / "Projects/quantum-projects/venv/bin/python3")
+)
 TIMEOUT_S = 20
 
 # Modules worth searching for `search` — deliberately not the entire
@@ -117,7 +123,10 @@ else:
 
 def _run_introspection(mode: str, arg: str) -> subprocess.CompletedProcess:
     if not QUANTUM_VENV_PYTHON.exists():
-        raise FileNotFoundError(f"quantum-projects venv not found at {QUANTUM_VENV_PYTHON}")
+        raise FileNotFoundError(
+            f"no Qiskit venv found at {QUANTUM_VENV_PYTHON} — set FLORA_QISKIT_VENV_PYTHON "
+            "to point at one, or create one (see SYSTEM_REQUIREMENTS.md's Qiskit section)"
+        )
     script = (
         _INTROSPECT_SCRIPT
         .replace("MODULES_PLACEHOLDER", repr(_SEARCH_MODULES))
