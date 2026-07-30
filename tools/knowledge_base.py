@@ -86,6 +86,11 @@ class KnowledgeBase:
 def _main() -> None:
     import argparse
 
+    # WHY this path fix: run standalone (as every AI COMMAND invocation of
+    # this file is), sys.path[0] is this file's own directory (tools/), not
+    # the repo root — config.py lives one level up and stayed there when
+    # this file moved into tools/.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from config import ConfigVault
 
     parser = argparse.ArgumentParser(description="Read-only search over the quantum-knowledge-base vault")

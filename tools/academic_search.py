@@ -21,6 +21,7 @@ anything meant to be read or spoken back to the user.
 """
 import re
 import sys
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
@@ -77,6 +78,11 @@ def _format_authors(authors: list[str]) -> str:
 def _main() -> None:
     import argparse
 
+    # WHY this path fix: run standalone (as every AI COMMAND invocation of
+    # this file is), sys.path[0] is this file's own directory (tools/), not
+    # the repo root — config.py lives one level up and stayed there when
+    # this file moved into tools/.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from config import ConfigVault
 
     parser = argparse.ArgumentParser(description="Search academic papers via SearXNG")

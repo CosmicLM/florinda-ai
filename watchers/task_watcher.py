@@ -32,7 +32,7 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-from task_runner import DONE_MARKER, TASKS_DIR
+from tools.task_runner import DONE_MARKER, TASKS_DIR
 
 logger = logging.getLogger(__name__)
 

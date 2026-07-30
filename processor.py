@@ -12,9 +12,7 @@ import requests
 from google.genai import types
 from google.genai.errors import APIError
 
-import anthropic_backend
-import claude_cli_backend
-import openai_backend
+from backends import anthropic_backend, claude_cli_backend, openai_backend
 from config import NULL_COMMAND
 
 logger = logging.getLogger(__name__)

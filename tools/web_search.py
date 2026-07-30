@@ -39,7 +39,7 @@ import requests
 DEFAULT_HOST = "http://127.0.0.1:8092"
 
 _SEARXNG_CONTAINER = "flora-ai-searxng"
-_COMPOSE_FILE = Path(__file__).resolve().parent / "docker-compose.yml"
+_COMPOSE_FILE = Path(__file__).resolve().parent.parent / "docker-compose.yml"
 _NETWORK_STATE_PATH = Path.home() / ".local/share/flora-ai/websearch_network_state.json"
 _RECREATE_COOLDOWN_S = 30.0  # don't hammer docker on every search if recreation keeps failing
 _RECREATE_TIMEOUT_S = 30.0
@@ -144,6 +144,11 @@ def search(query: str, max_results: int = 5, host: str = DEFAULT_HOST) -> list[d
 def _main() -> None:
     import argparse
 
+    # WHY this path fix: run standalone (as every AI COMMAND invocation of
+    # this file is), sys.path[0] is this file's own directory (tools/), not
+    # the repo root — config.py lives one level up and stayed there when
+    # this file moved into tools/.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from config import ConfigVault
 
     parser = argparse.ArgumentParser(description="Search the web via SearXNG")

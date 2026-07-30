@@ -33,7 +33,7 @@ from collections import deque
 from pathlib import Path
 from typing import Callable, Optional
 
-from local_brain import LocalBrain, LocalBrainError
+from backends.local_brain import LocalBrain, LocalBrainError
 
 logger = logging.getLogger(__name__)
 
