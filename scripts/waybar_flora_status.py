@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""waybar_hypr_status.py — reads Hypr's status file and prints Waybar custom-module JSON.
+"""waybar_flora_status.py — reads Florinda's status file and prints Waybar custom-module JSON.
 
-WHY stdlib-only, no project imports: same reasoning as hypr_ptt_hook.py — this
+WHY stdlib-only, no project imports: same reasoning as flora_ptt_hook.py — this
 runs as Waybar's exec script on a fast interval, so it should stay a fast,
 dependency-light process rather than importing the project's venv-only deps.
 """
@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-STATUS_PATH = Path.home() / ".local/share/hypr-ai/status.json"
+STATUS_PATH = Path.home() / ".local/share/flora-ai/status.json"
 STALE_AFTER_S = 60
 
 _SOLID_DOT = "●"
@@ -19,20 +19,20 @@ _HOLLOW_DOT = "○"
 _STATE_LABELS = {
     # (word, tooltip) — WHY a dot instead of an emoji: the dot inherits its
     # color from the SAME per-state CSS class already applied to the text
-    # (#custom-hypr.listening/.thinking/.talking in style.css), so it's
+    # (#custom-flora.listening/.thinking/.talking in style.css), so it's
     # automatically colored correctly with zero extra styling — an emoji
     # carries its own fixed color/rendering that can't do that. The word is
     # still what actually disambiguates the state; the dot is a lighter
     # visual marker, and for "talking" specifically it alternates solid/
     # hollow (see StatusBroadcaster.set_talking's blink thread) so an active
     # reply visibly reads as "live" rather than a static icon.
-    "idle": ("Idle", "Hypr: idle"),
-    "listening": ("Listening", "Hypr: listening..."),
-    "thinking": ("Thinking", "Hypr: thinking..."),
-    "talking": ("Talking", "Hypr: talking..."),
-    "watching": ("Watching", "Hypr: watching the screen..."),
+    "idle": ("Idle", "Florinda: idle"),
+    "listening": ("Listening", "Florinda: listening..."),
+    "thinking": ("Thinking", "Florinda: thinking..."),
+    "talking": ("Talking", "Florinda: talking..."),
+    "watching": ("Watching", "Florinda: watching the screen..."),
 }
-_OFFLINE_LABEL = ("Offline", "Hypr: offline")
+_OFFLINE_LABEL = ("Offline", "Florinda: offline")
 
 
 def main() -> None:
