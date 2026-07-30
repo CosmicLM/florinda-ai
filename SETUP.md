@@ -289,11 +289,30 @@ hl.window_rule({ name = "flora-ai-figure-center",match = { class = "^(flora-figu
 
 ## 7. (Optional) Waybar status widget
 
-Add a `custom/flora` module to your waybar config pointing at
-`scripts/waybar_flora_status.py` — see this repo's own
-`~/.config/waybar/modules.json`-style setup for the exact module/CSS shape,
-or skip this entirely if you don't use waybar; it's cosmetic, not required
-for Florinda to function.
+Add a `custom/flora` module to your waybar config:
+
+```jsonc
+"custom/flora": {
+    "format": "{}",
+    "escape": false,
+    "return-type": "json",
+    "exec": "python3 PROJECT_DIR/scripts/waybar_flora_status.py",
+    "interval": 10,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "kitty --class flora-activity --title 'Florinda Activity (read-only)' -e sh -c 'tail -n 200 -f ~/.local/share/flora-ai/activity.log'",
+    "on-click-right": "python3 PROJECT_DIR/scripts/flora_kill_switch.py"
+}
+```
+
+`on-click-right` is a kill switch: it stops `flora-daemon.service` if
+running (mic, screen-watching, every background watcher all go silent —
+the widget flips to "Offline"), or starts it back up if it's currently
+stopped. Same toggle-on-repeated-click pattern as the GNOME/KDE push-to-
+talk hook, just bound to a right-click instead of a keybind. Skip this
+entire module if you don't use waybar; it's cosmetic/convenience, not
+required for Florinda to function — `systemctl --user stop/start
+flora-daemon.service` does the same thing from a terminal.
 
 ## 8. Verify end-to-end
 
