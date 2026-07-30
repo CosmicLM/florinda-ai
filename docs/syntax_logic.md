@@ -1,4 +1,4 @@
-# Hypr - Technical Log: Syntax & Logic
+# Florinda - Technical Log: Syntax & Logic
 
 ## 2026-02-26: PromptProcessor Instantiation Fix
 **Issue:** System was returning `<processor.PromptProcessor object at...>` instead of the Gemini string.
@@ -15,9 +15,9 @@ if user_input.strip():
 
 ---
 
-## 2026-02-26: Hypr Daemon Logic
+## 2026-02-26: Florinda Daemon Logic
 
 **Issue:**  The process in itself is reproducing text, but it does not execute commands, nor does it reproduce sound.
 
-**Root Cause:** I have detected the [[hypr_daemon.py]] is actually just asking the processor the answer, it then prints the answer on the screen and it then stops. it is crucial to bridge the [[voice.py]] correctly, in order for the logic to work.
+**Root Cause:** I have detected the [[flora_daemon.py]] is actually just asking the processor the answer, it then prints the answer on the screen and it then stops. it is crucial to bridge the [[voice.py]] correctly, in order for the logic to work.
  

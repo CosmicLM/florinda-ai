@@ -1,9 +1,9 @@
-"""state_manifest.py — persists Hypr's context across CLI invocations.
+"""state_manifest.py — persists Florinda's context across CLI invocations.
 
 WHY: the spec calls for state.json to live on an encrypted USB "Ark" partition.
 No such drive is attached to this machine yet, so this stores to a local path
 instead; swapping `state_path` to a mounted Ark partition later is a one-line
-config change (see config.HyprSettings.state_path), not a rewrite of this class.
+config change (see config.FloraSettings.state_path), not a rewrite of this class.
 """
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ from typing import Any
 
 
 class StateManifest:
-    """Loads and saves Hypr's persisted state as a flat JSON dict."""
+    """Loads and saves Florinda's persisted state as a flat JSON dict."""
 
     def __init__(self, state_path: Path) -> None:
         self._state_path = state_path

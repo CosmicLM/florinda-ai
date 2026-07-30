@@ -30,7 +30,7 @@ class MicRecorder:
         """Begin recording; a no-op if already recording (guards a double-PRESS)."""
         if self._process is not None:
             return
-        fd, path = tempfile.mkstemp(suffix=".wav", prefix="hypr-ptt-")
+        fd, path = tempfile.mkstemp(suffix=".wav", prefix="flora-ptt-")
         os.close(fd)
         self._wav_path = Path(path)
         self._process = subprocess.Popen(

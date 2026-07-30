@@ -1,9 +1,9 @@
 ---
-description: "Use when writing or reviewing Python code for hypr-ai. Covers architectural integrity, naming clarity, error handling patterns, and safety constraints specific to voice pipeline and shell execution. Apply the 20-line rule, SRP, dependency inversion, and null avoidance."
+description: "Use when writing or reviewing Python code for flora-ai. Covers architectural integrity, naming clarity, error handling patterns, and safety constraints specific to voice pipeline and shell execution. Apply the 20-line rule, SRP, dependency inversion, and null avoidance."
 applyTo: "**/*.py"
 ---
 
-# Hypr-AI Code Review & Architectural Principles
+# Florinda Code Review & Architectural Principles
 
 This guide enforces **deep architectural thinking** over surface compliance. Every module must withstand scrutiny on naming, intent, error handling, and single responsibility.
 
@@ -227,7 +227,7 @@ def execute_command(cmd):
 
 ## PART III: ERROR HANDLING
 
-**Why this matters**: Silent failures hide Hypr-AI's problems. Errors should be loud and specific.
+**Why this matters**: Silent failures hide Florinda's problems. Errors should be loud and specific.
 
 ### Exceptions Over Error Codes
 
@@ -449,7 +449,7 @@ Structure code like a newspaper:
 #### ✅ Good structure
 ```python
 def main():
-    # High-level: what Hypr does
+    # High-level: what Florinda does
     input_text = get_user_input()
     response = process_with_ai(input_text)
     execute_and_speak(response)
