@@ -394,6 +394,46 @@ def prompt_voice_model(prompter: Prompter) -> str:
     return _download_default_voice()
 
 
+_DEFAULT_QISKIT_VENV = Path.home() / "Projects/quantum-projects/venv"
+
+
+def setup_qiskit_venv(prompter: Prompter) -> Optional[str]:
+    """Optional — Qiskit circuit verification (qiskit_runner.py/qiskit_docs.py)
+    is deliberately NOT part of flora-ai's own venv (a large, opt-in
+    dependency tree most installs don't need, see that file's own WHY note).
+    Returns a FLORA_QISKIT_VENV_PYTHON value to add to .env, or None if the
+    default location is used (already qiskit_runner.py's own fallback, so
+    nothing needs to go in .env for that case) or the step was skipped."""
+    print("\n--- Qiskit circuit verification (optional) ---")
+    if not prompter.confirm(
+        "setup_qiskit_venv",
+        "Set up a separate Qiskit environment (qiskit + qiskit-aer + matplotlib) "
+        "so Florinda can actually run circuits instead of just reasoning about "
+        "them? Optional, and a sizeable download.",
+        default=False,
+    ):
+        print(
+            "Skipped — Qiskit requests will fail with a clear error until you set "
+            "one up later (see SETUP.md's Qiskit section)."
+        )
+        return None
+    venv_path = Path(
+        prompter.text(
+            "qiskit_venv_path", "Where should this venv live?", default=str(_DEFAULT_QISKIT_VENV)
+        )
+    ).expanduser()
+    if venv_path.exists():
+        print(f"{venv_path} already exists, reusing it.")
+    else:
+        venv_path.parent.mkdir(parents=True, exist_ok=True)
+        _run([sys.executable, "-m", "venv", str(venv_path)])
+    pip = str(venv_path / "bin" / "pip")
+    _run([pip, "install", "--upgrade", "pip"])
+    _run([pip, "install", "qiskit", "qiskit-aer", "matplotlib"])
+    print(f"Qiskit environment ready at {venv_path}.")
+    return None if venv_path == _DEFAULT_QISKIT_VENV else str(venv_path / "bin" / "python3")
+
+
 def write_env(env_vars: dict, prompter: Prompter) -> None:
     if ENV_PATH.exists():
         if not prompter.confirm("overwrite_env", f"{ENV_PATH} already exists. Overwrite?", default=False):
@@ -926,6 +966,9 @@ def main() -> None:
         voice_model = prompt_voice_model(prompter)
         if voice_model:
             env_vars["DEFAULT_VOICE_MODEL"] = voice_model
+        qiskit_venv_python = setup_qiskit_venv(prompter)
+        if qiskit_venv_python:
+            env_vars["FLORA_QISKIT_VENV_PYTHON"] = qiskit_venv_python
         write_env(env_vars, prompter)
         needs_relogin = setup_docker(prompter)
         setup_systemd_service(prompter)

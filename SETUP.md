@@ -7,10 +7,12 @@ here and why — this guide is the "how," that one's the "what."
 **Fastest path**: `./install.sh` does everything below interactively —
 detects your distro (Arch/Debian/Fedora) and desktop, installs system
 packages (confirming before any `sudo` step), sets up the venv, prompts for
-an AI provider and voice model, writes `.env`, brings up the SearXNG
-container, and installs the systemd service. What follows is what it's
-actually doing, for anyone who wants to run the steps by hand, understand
-them, or debug a step that didn't go as expected.
+an AI provider and voice model, optionally sets up a Qiskit environment,
+writes `.env`, brings up the SearXNG container, and installs the systemd
+service. What follows is what it's actually doing, for anyone who wants to
+run the steps by hand, understand them, or debug a step that didn't go as
+expected. Already installed? See "Updating an existing install" near the
+end instead — `./update.sh` does that part.
 
 Commands below use `pacman` (Arch/Manjaro). Swap in your distro's package
 manager (`apt`, `dnf`, ...) and package names as needed — most of these are
@@ -400,7 +402,9 @@ you give it (or describe its own suggestions to you) instead of just
 reasoning about whether a circuit would work. This is entirely optional —
 skip it and everything else still works — and deliberately NOT part of
 flora-ai's own venv, since qiskit/qiskit-aer/matplotlib are a large
-dependency tree most installs don't need. Set up a separate venv:
+dependency tree most installs don't need. `install.sh` offers to set this
+up automatically (confirming first, since it's a sizeable download); to do
+it by hand instead:
 
 ```bash
 python3 -m venv ~/Projects/quantum-projects/venv
@@ -422,20 +426,22 @@ exactly what's missing — not a crash, and nothing else is affected.
 
 ```bash
 cd ~/florinda-ai   # wherever you originally cloned it
-git pull
-./install.sh
+./update.sh
 ```
 
-Re-running `./install.sh` on top of an existing install is safe — every
-step either confirms before touching anything or is naturally idempotent:
-system packages just get skipped if already installed, the venv is reused
-(not recreated) and `pip install -r requirements.txt` re-run on top of it,
+`update.sh` checks for uncommitted local changes (asks before pulling over
+them), runs `git pull --ff-only`, then re-runs `./install.sh`. Re-running
+the installer on top of an existing install is safe — every step either
+confirms before touching anything or is naturally idempotent: system
+packages just get skipped if already installed, the venv is reused (not
+recreated) and `pip install -r requirements.txt` re-run on top of it,
 `.env` is left alone unless you explicitly agree to overwrite it, and
 keybind/GNOME-extension files are overwritten with whatever the current
 checkout has rather than duplicated. This is the right move any time a fix
 lands that touches system dependencies (as several recently have — see the
 git log) — a plain `git pull` alone wouldn't install a newly-required
-system package.
+system package. Any extra arguments after `./update.sh` (e.g.
+`--answers-file`) are passed straight through to `install.py`.
 
 If you know a change was Python-only (no new system packages, no changes
 to `install.py` itself), it's faster to skip the full installer:

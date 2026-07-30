@@ -34,6 +34,10 @@ step by step (or to do it by hand instead), and
 **[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for exactly what gets
 installed and why.
 
+**Already installed?** `./update.sh` pulls the latest changes and safely
+re-runs the installer, so any newly-required system packages get picked up
+too — see SETUP.md's "Updating an existing install" section.
+
 ## Quick Start
 
 1. Configure your Hyprland keybind
