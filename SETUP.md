@@ -373,3 +373,35 @@ echo '\[ E = mc^2 \]' | venv/bin/python3 latex_runner.py run
 If push-to-talk doesn't trigger anything, check `~/.local/share/flora-ai/
 ptt-hook.log` first (confirms the keybind fired at all) before suspecting the
 service itself.
+
+## Updating an existing install
+
+```bash
+cd ~/florinda-ai   # wherever you originally cloned it
+git pull
+./install.sh
+```
+
+Re-running `./install.sh` on top of an existing install is safe — every
+step either confirms before touching anything or is naturally idempotent:
+system packages just get skipped if already installed, the venv is reused
+(not recreated) and `pip install -r requirements.txt` re-run on top of it,
+`.env` is left alone unless you explicitly agree to overwrite it, and
+keybind/GNOME-extension files are overwritten with whatever the current
+checkout has rather than duplicated. This is the right move any time a fix
+lands that touches system dependencies (as several recently have — see the
+git log) — a plain `git pull` alone wouldn't install a newly-required
+system package.
+
+If you know a change was Python-only (no new system packages, no changes
+to `install.py` itself), it's faster to skip the full installer:
+
+```bash
+git pull
+venv/bin/pip install -r requirements.txt   # only needed if requirements.txt changed
+systemctl --user restart flora-daemon.service
+journalctl --user -u flora-daemon.service -n 20 --no-pager   # confirm a clean restart
+```
+
+When in doubt, `./install.sh` is always safe to re-run — it just costs a
+few extra confirmation prompts for steps that turn out to already be done.
