@@ -435,25 +435,43 @@ def main() -> None:
             "yellow",
         ))
 
-    client = genai.Client(
-        api_key=vault.settings.api_key,
-        # WHY retry_options attempts=1: google-genai defaults to 5 retries
-        # with exponential backoff (up to 60s delay each) — observed live,
-        # that turned a 10s timeout into a 52s+ real-world wait before the
-        # offline fallback ever got a chance to run. A genuinely dead
-        # network won't be fixed by retrying, so failing fast (once) here
-        # is what actually lets the timeout above mean what it says.
-        http_options={
-            "timeout": int(vault.settings.gemini_timeout_s * 1000),
-            "retry_options": {"attempts": 1},
-        },
-    )
+    # WHY only built when ai_provider is actually "gemini": verified live —
+    # genai.Client(api_key=None) raises ValueError immediately at
+    # construction, not lazily on first use. A user running purely on
+    # FLORA_AI_PROVIDER=openai/anthropic (the whole point of attaching a
+    # different provider's key — see config.py's conditional validator) has
+    # no Gemini key configured, so building this unconditionally would
+    # crash startup before PromptProcessor ever got a chance to route
+    # around Gemini entirely.
+    client = None
+    if vault.settings.ai_provider == "gemini":
+        client = genai.Client(
+            api_key=vault.settings.api_key,
+            # WHY retry_options attempts=1: google-genai defaults to 5 retries
+            # with exponential backoff (up to 60s delay each) — observed live,
+            # that turned a 10s timeout into a 52s+ real-world wait before the
+            # offline fallback ever got a chance to run. A genuinely dead
+            # network won't be fixed by retrying, so failing fast (once) here
+            # is what actually lets the timeout above mean what it says.
+            http_options={
+                "timeout": int(vault.settings.gemini_timeout_s * 1000),
+                "retry_options": {"attempts": 1},
+            },
+        )
     processor = PromptProcessor(
         client, vault.settings.ai_model, vault.settings.ai_model_light,
         offline_model=vault.settings.offline_fallback_model if vault.settings.offline_fallback_enabled else None,
         ollama_host=vault.settings.ollama_host,
         use_claude_cli_for_deep=vault.settings.use_claude_cli_for_deep,
         claude_cli_timeout_s=vault.settings.claude_cli_timeout_s,
+        ai_provider=vault.settings.ai_provider,
+        openai_api_key=vault.settings.openai_api_key,
+        openai_base_url=vault.settings.openai_base_url,
+        openai_model=vault.settings.openai_model,
+        openai_model_light=vault.settings.openai_model_light,
+        anthropic_api_key=vault.settings.anthropic_api_key,
+        anthropic_model=vault.settings.anthropic_model,
+        anthropic_model_light=vault.settings.anthropic_model_light,
     )
     terminal = SystemTerminal()
     audio = AudioEngine(vault.settings.voice_model, vault.settings.debug)

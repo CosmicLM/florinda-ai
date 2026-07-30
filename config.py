@@ -2,10 +2,10 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 NULL_COMMAND = "null"  # AI protocol's "no action" sentinel — not env-derived, always importable.
 
@@ -23,13 +23,44 @@ class FloraSettings(BaseModel):
     """Structural contract for Florinda's environment-derived configuration."""
     model_config = ConfigDict(frozen=True)
 
-    api_key: str = Field(min_length=1, description="FLORA_API_KEY")
+    # --- Primary AI provider — pluggable so ANY provider's API key can be
+    # attached, not just Gemini. "gemini" (default) preserves this project's
+    # original behavior exactly; the other two are genuine alternatives, not
+    # fallbacks — see openai_backend.py/anthropic_backend.py. ---
+    ai_provider: Literal["gemini", "openai", "anthropic"] = Field(
+        default="gemini", description="FLORA_AI_PROVIDER"
+    )
+    api_key: Optional[str] = Field(default=None, description="FLORA_API_KEY (Gemini)")
     voice_model: Optional[str] = Field(default=None, description="DEFAULT_VOICE_MODEL")
     ai_model: str = Field(default="gemini-3-flash-preview")
     ai_model_light: Optional[str] = Field(
         default=None,
         description="Cheaper/faster model for high-volume tasks (falls back to ai_model)",
     )
+
+    # --- Generic OpenAI-compatible provider (openai_backend.py) — covers
+    # OpenAI itself, Azure OpenAI, Mistral, Groq, OpenRouter, Together, or a
+    # self-hosted vLLM/llama.cpp/Ollama OpenAI-compat endpoint. No default
+    # model is guessed — every provider names its models differently, so
+    # this must be set explicitly when ai_provider="openai". ---
+    openai_api_key: Optional[str] = Field(default=None, description="FLORA_OPENAI_API_KEY")
+    openai_base_url: str = Field(
+        default="https://api.openai.com/v1", description="FLORA_OPENAI_BASE_URL"
+    )
+    openai_model: Optional[str] = Field(default=None, description="FLORA_OPENAI_MODEL")
+    openai_model_light: Optional[str] = Field(
+        default=None, description="FLORA_OPENAI_MODEL_LIGHT — falls back to openai_model"
+    )
+
+    # --- Native Anthropic API provider (anthropic_backend.py) — for direct
+    # Anthropic API billing, distinct from claude_cli_backend.py's
+    # subscription-based `claude` CLI route. ---
+    anthropic_api_key: Optional[str] = Field(default=None, description="FLORA_ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-opus-5", description="FLORA_ANTHROPIC_MODEL")
+    anthropic_model_light: str = Field(
+        default="claude-haiku-4-5", description="FLORA_ANTHROPIC_MODEL_LIGHT"
+    )
+
     debug: bool = Field(default=False)
     log_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/flora-ai.log")
     state_path: Path = Field(default_factory=lambda: Path.home() / ".local/share/flora-ai/state.json")
@@ -128,6 +159,25 @@ class FloraSettings(BaseModel):
     )
     activity_log_max_lines: int = Field(default=2000, description="FLORA_ACTIVITY_LOG_MAX_LINES")
 
+    @model_validator(mode="after")
+    def _require_selected_provider_credentials(self) -> "FloraSettings":
+        """WHY conditional rather than three independently-required fields:
+        api_key being unconditionally required (min_length=1) was the whole
+        blocker to attaching any other provider's key — a user running
+        purely on OpenAI or Anthropic shouldn't need a Gemini key they'll
+        never use just to satisfy validation. Only the credential for the
+        ACTUALLY selected ai_provider is required; the other two providers'
+        fields stay fully optional either way."""
+        if self.ai_provider == "gemini" and not self.api_key:
+            raise ValueError("FLORA_API_KEY is required when FLORA_AI_PROVIDER=gemini")
+        if self.ai_provider == "openai" and not (self.openai_api_key and self.openai_model):
+            raise ValueError(
+                "FLORA_OPENAI_API_KEY and FLORA_OPENAI_MODEL are both required when FLORA_AI_PROVIDER=openai"
+            )
+        if self.ai_provider == "anthropic" and not self.anthropic_api_key:
+            raise ValueError("FLORA_ANTHROPIC_API_KEY is required when FLORA_AI_PROVIDER=anthropic")
+        return self
+
 
 class ConfigVault:
     """Loads, validates, and exposes Florinda's runtime configuration."""
@@ -140,7 +190,7 @@ class ConfigVault:
     def _load_settings(self) -> FloraSettings:
         try:
             return FloraSettings(
-                api_key=os.getenv("FLORA_API_KEY") or "",
+                api_key=os.getenv("FLORA_API_KEY") or None,
                 voice_model=os.getenv("DEFAULT_VOICE_MODEL"),
                 ai_model_light=os.getenv("FLORA_AI_MODEL_LIGHT"),
                 debug=os.getenv("FLORA_DEBUG", "false").lower() == "true",
@@ -153,6 +203,22 @@ class ConfigVault:
     def _service_overrides() -> dict:
         """Env overrides for the always-on service — omitted keys fall back to FloraSettings defaults."""
         overrides = {}
+        if (v := os.getenv("FLORA_AI_PROVIDER")) is not None:
+            overrides["ai_provider"] = v
+        if (v := os.getenv("FLORA_OPENAI_API_KEY")) is not None:
+            overrides["openai_api_key"] = v
+        if (v := os.getenv("FLORA_OPENAI_BASE_URL")) is not None:
+            overrides["openai_base_url"] = v
+        if (v := os.getenv("FLORA_OPENAI_MODEL")) is not None:
+            overrides["openai_model"] = v
+        if (v := os.getenv("FLORA_OPENAI_MODEL_LIGHT")) is not None:
+            overrides["openai_model_light"] = v
+        if (v := os.getenv("FLORA_ANTHROPIC_API_KEY")) is not None:
+            overrides["anthropic_api_key"] = v
+        if (v := os.getenv("FLORA_ANTHROPIC_MODEL")) is not None:
+            overrides["anthropic_model"] = v
+        if (v := os.getenv("FLORA_ANTHROPIC_MODEL_LIGHT")) is not None:
+            overrides["anthropic_model_light"] = v
         if (v := os.getenv("FLORA_STT_MODEL")) is not None:
             overrides["stt_model"] = v
         if (v := os.getenv("FLORA_STT_DEVICE")) is not None:
@@ -215,8 +281,18 @@ class ConfigVault:
 
     @staticmethod
     def _summarize(error: ValidationError) -> str:
-        fields = [".".join(str(p) for p in e["loc"]) for e in error.errors()]
-        return f"Invalid Florinda configuration for: {', '.join(fields)}"
+        """WHY the message text is included, not just field names: a
+        whole-model @model_validator (like _require_selected_provider_credentials
+        above) has no specific field location (`loc` is empty) — without the
+        message text, a provider-credential error summarized to a bare
+        "Invalid Florinda configuration for: " with nothing after the colon,
+        discarding the one piece of information that actually explains what's
+        wrong."""
+        parts = []
+        for e in error.errors():
+            field = ".".join(str(p) for p in e["loc"])
+            parts.append(f"{field}: {e['msg']}" if field else e["msg"])
+        return f"Invalid Florinda configuration — {'; '.join(parts)}"
 
     def _prepare_logging(self) -> None:
         self.settings.log_path.parent.mkdir(parents=True, exist_ok=True)

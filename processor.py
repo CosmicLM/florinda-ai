@@ -12,7 +12,9 @@ import requests
 from google.genai import types
 from google.genai.errors import APIError
 
+import anthropic_backend
 import claude_cli_backend
+import openai_backend
 from config import NULL_COMMAND
 
 logger = logging.getLogger(__name__)
@@ -484,6 +486,14 @@ class PromptProcessor:
         ollama_host: str = "http://localhost:11434",
         use_claude_cli_for_deep: bool = False,
         claude_cli_timeout_s: float = 60.0,
+        ai_provider: Literal["gemini", "openai", "anthropic"] = "gemini",
+        openai_api_key: Optional[str] = None,
+        openai_base_url: str = "https://api.openai.com/v1",
+        openai_model: Optional[str] = None,
+        openai_model_light: Optional[str] = None,
+        anthropic_api_key: Optional[str] = None,
+        anthropic_model: str = "claude-opus-5",
+        anthropic_model_light: str = "claude-haiku-4-5",
     ) -> None:
         self._client = ai_client
         self._ai_model = ai_model
@@ -501,6 +511,20 @@ class PromptProcessor:
         # that makes it unsuitable for the fast light tier.
         self._use_claude_cli_for_deep = use_claude_cli_for_deep
         self._claude_cli_timeout_s = claude_cli_timeout_s
+        # WHY these are alternate PRIMARY providers, not more fallbacks
+        # layered onto Gemini: a user without Gemini access (or who simply
+        # prefers a different provider) sets FLORA_AI_PROVIDER and this
+        # entirely replaces Gemini (+ its Claude-CLI-deep-tier/Ollama-offline
+        # fallback chain) for both tiers — see _stream_model's dispatch at
+        # the top, before any Gemini-specific logic runs.
+        self._ai_provider = ai_provider
+        self._openai_api_key = openai_api_key
+        self._openai_base_url = openai_base_url
+        self._openai_model = openai_model
+        self._openai_model_light = openai_model_light or openai_model
+        self._anthropic_api_key = anthropic_api_key
+        self._anthropic_model = anthropic_model
+        self._anthropic_model_light = anthropic_model_light
 
     def generate_instruction(
         self,
@@ -589,6 +613,16 @@ class PromptProcessor:
         cancel_event: Optional[threading.Event] = None,
     ) -> Iterator[str]:
         system_prompt = self._load_system_prompt(sys_info, recent_actions, qiskit_notes)
+        if self._ai_provider != "gemini":
+            # WHY these entirely REPLACE Gemini (+ its Claude-CLI-deep-tier/
+            # Ollama-offline fallback chain) rather than layer on top of it:
+            # a user who set FLORA_AI_PROVIDER has no Gemini key configured
+            # at all in the common case (see config.py's conditional
+            # validator) — falling through to Gemini logic below on any
+            # error here would just be a second, differently-broken failure
+            # mode, not a real fallback.
+            yield from self._stream_alternate_provider(user_input, tier, system_prompt, conversation_history)
+            return
         if tier == "deep" and self._use_claude_cli_for_deep:
             try:
                 prompt = _format_history_for_claude(conversation_history) + user_input
@@ -686,6 +720,38 @@ class PromptProcessor:
                 self._offline_model, error,
             )
             yield from self._stream_ollama(user_input, system_prompt, conversation_history)
+
+    def _stream_alternate_provider(
+        self,
+        user_input: str,
+        tier: Literal["light", "deep"],
+        system_prompt: str,
+        conversation_history: Optional[list],
+    ) -> Iterator[str]:
+        """Routes to whichever non-Gemini provider is configured. Buffers the
+        full reply before yielding once (rather than yielding per-chunk like
+        Gemini does above) and runs it through _ensure_end_tokens — verified
+        live that Claude (whether via the CLI or, here, the real Anthropic
+        API) reliably omits this wire protocol's <END> delimiter; an
+        untested-live third-party model behind an OpenAI-compatible endpoint
+        could just as easily share that same formatting gap, and
+        _ensure_end_tokens is a no-op if the delimiter's already present, so
+        applying it defensively here costs nothing when it isn't needed."""
+        if self._ai_provider == "anthropic":
+            model = self._anthropic_model if tier == "deep" else self._anthropic_model_light
+            reply = "".join(anthropic_backend.stream(
+                user_input, system_prompt, model, self._anthropic_api_key,
+                conversation_history=conversation_history,
+            ))
+        elif self._ai_provider == "openai":
+            model = self._openai_model if tier == "deep" else self._openai_model_light
+            reply = "".join(openai_backend.stream(
+                user_input, system_prompt, model, self._openai_api_key, self._openai_base_url,
+                conversation_history=conversation_history,
+            ))
+        else:
+            raise ValueError(f"unknown ai_provider: {self._ai_provider!r}")
+        yield _ensure_end_tokens(reply)
 
     def _stream_ollama(
         self, user_input: str, system_prompt: str, conversation_history: Optional[list],
