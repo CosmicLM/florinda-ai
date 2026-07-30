@@ -33,7 +33,7 @@ sudo systemctl enable --now docker
 
 `base-devel`/`gobject-introspection`/`cairo` (Debian/Ubuntu:
 `build-essential`, `pkg-config`, `python3-dev`, `libdbus-1-dev`,
-`libglib2.0-dev`, `libgirepository1.0-dev`, `libcairo2-dev`; Fedora: `gcc`,
+`libglib2.0-dev`, `libgirepository-2.0-dev`, `libcairo2-dev`; Fedora: `gcc`,
 `pkgconf-pkg-config`, `python3-devel`, `dbus-devel`, `glib2-devel`,
 `gobject-introspection-devel`, `cairo-devel`) are needed even if you're on
 Hyprland/Sway and never touch the ScreenCast fallback — `pip install -r
@@ -42,6 +42,16 @@ requirements.txt` builds `dbus-python` and `PyGObject` (which pulls in
 prebuilt wheel), and without a C compiler + these dev headers that step
 fails with a Meson "Unknown compiler(s)" or "Dependency ... not found"
 error.
+
+**Ubuntu/Debian note**: `libgirepository-2.0-dev` only exists starting with
+gobject-introspection 1.80 — confirmed present on **Ubuntu 24.04 LTS
+("noble") onward** and **Debian 13 ("trixie") onward**, confirmed absent on
+Ubuntu 22.04 and Debian 12 ("bookworm"). `PyGObject>=3.56` requires
+`girepository-2.0` unconditionally, with no fallback to the older
+`girepository-1.0` that `libgirepository1.0-dev` provides, so this won't
+build from source on Ubuntu 22.04 or Debian 12 or older as things stand.
+Not automated by this installer since it hasn't come up yet — you'd need
+an older, pinned `PyGObject` version on those releases instead.
 
 **Ubuntu/Debian note**: `docker-compose-plugin` isn't in the default apt
 repos (`E: Unable to locate package docker-compose-plugin`) — it only ships

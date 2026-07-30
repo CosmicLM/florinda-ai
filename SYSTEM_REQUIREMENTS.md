@@ -20,7 +20,7 @@ with a real, readable error naming exactly what's missing (this project's own
 | **gtk-launch** | `gtk3` (or `libgtk-3-bin` on Debian/Ubuntu) | resolving an installed app's `.desktop` entry (`app_launcher.py`) |
 | Docker + Docker Compose | `docker`, `docker-compose` (Debian/Ubuntu: `docker-ce`/`docker-compose-plugin` from Docker's own apt repo — see note below) | the self-hosted SearXNG container backing Web Search / Academic Paper Search |
 | systemd (user session) | (present on virtually any modern distro) | `flora-daemon.service`, the always-on background service |
-| A C compiler + D-Bus/GObject-introspection/cairo dev headers | `base-devel`, `gobject-introspection`, `cairo` (Debian/Ubuntu: `build-essential`, `pkg-config`, `python3-dev`, `libdbus-1-dev`, `libglib2.0-dev`, `libgirepository1.0-dev`, `libcairo2-dev`; Fedora: `gcc`, `pkgconf-pkg-config`, `python3-devel`, `dbus-devel`, `glib2-devel`, `gobject-introspection-devel`, `cairo-devel`) | building `dbus-python`/`PyGObject` (which pulls in `pycairo`) from source during `pip install -r requirements.txt` — none of the three has a prebuilt wheel, so this is needed on **every** install, not just desktops that end up using the `screencast_portal.py` fallback |
+| A C compiler + D-Bus/GObject-introspection/cairo dev headers | `base-devel`, `gobject-introspection`, `cairo` (Debian/Ubuntu: `build-essential`, `pkg-config`, `python3-dev`, `libdbus-1-dev`, `libglib2.0-dev`, `libgirepository-2.0-dev`, `libcairo2-dev`; Fedora: `gcc`, `pkgconf-pkg-config`, `python3-devel`, `dbus-devel`, `glib2-devel`, `gobject-introspection-devel`, `cairo-devel`) | building `dbus-python`/`PyGObject` (which pulls in `pycairo`) from source during `pip install -r requirements.txt` — none of the three has a prebuilt wheel, so this is needed on **every** install, not just desktops that end up using the `screencast_portal.py` fallback |
 | **One configured AI provider** | — | see "AI provider" below — at least one is required |
 
 **Ubuntu/Debian note**: `python3 -m venv` fails with "ensurepip is not
@@ -34,6 +34,17 @@ repos (`E: Unable to locate package docker-compose-plugin`) — it's only
 published in Docker's own apt repo, not your distro's. `./install.sh` /
 `install.py` adds that repo automatically (confirming first); see `SETUP.md`
 step 1 for the manual commands if you're not using the installer.
+
+**Ubuntu/Debian note**: `libgirepository-2.0-dev` only exists starting with
+gobject-introspection 1.80 — confirmed present on **Ubuntu 24.04 LTS
+("noble") onward** and **Debian 13 ("trixie") onward**, confirmed absent on
+Ubuntu 22.04 and Debian 12 ("bookworm"). `PyGObject>=3.56` requires the
+`girepository-2.0` API unconditionally at build time (no fallback to the
+older `girepository-1.0`), so building it from source is not possible on
+Ubuntu 22.04 or Debian 12 or older as things stand. If you're on one of
+those, you'd need to pin `PyGObject` to an older version compatible with
+`libgirepository1.0-dev` instead — not automated by this installer since
+it hasn't come up yet.
 
 ## AI provider — pick exactly one as primary (`FLORA_AI_PROVIDER`)
 
