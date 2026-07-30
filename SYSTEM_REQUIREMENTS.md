@@ -12,7 +12,7 @@ with a real, readable error naming exactly what's missing (this project's own
 
 | What | Package (Arch/Manjaro) | Used by |
 |---|---|---|
-| Python 3.8+ | `python` | everything (tested on 3.14) |
+| Python 3.8+ | `python` (Debian/Ubuntu: also needs `python3-venv`, split out separately from the base `python3` package — see note below) | everything (tested on 3.14) |
 | A terminal emulator: **kitty** | `kitty` | figure popups (Qiskit/LaTeX/RDKit), background task windows, the activity-log viewer |
 | **piper-tts** + a voice model (`.onnx`) | AUR: `piper-tts`, or a manual build | text-to-speech (`voice.py`) |
 | ALSA utilities: `aplay`, `arecord` | `alsa-utils` | audio playback + mic recording (`voice.py`, `mic_recorder.py`) |
@@ -21,6 +21,12 @@ with a real, readable error naming exactly what's missing (this project's own
 | Docker + Docker Compose | `docker`, `docker-compose` (Debian/Ubuntu: `docker-ce`/`docker-compose-plugin` from Docker's own apt repo — see note below) | the self-hosted SearXNG container backing Web Search / Academic Paper Search |
 | systemd (user session) | (present on virtually any modern distro) | `flora-daemon.service`, the always-on background service |
 | **One configured AI provider** | — | see "AI provider" below — at least one is required |
+
+**Ubuntu/Debian note**: `python3 -m venv` fails with "ensurepip is not
+available" unless `python3-venv` is installed — Debian/Ubuntu splits it out
+of the base `python3` package (Arch/Fedora don't need this extra step).
+`./install.sh`/`install.py` installs it automatically as part of the system
+package step.
 
 **Ubuntu/Debian note**: `docker-compose-plugin` isn't in the default apt
 repos (`E: Unable to locate package docker-compose-plugin`) — it's only

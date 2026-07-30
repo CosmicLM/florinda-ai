@@ -69,6 +69,13 @@ and note its path; you'll point `DEFAULT_VOICE_MODEL` at it in step 3.
 
 ## 2. Clone and install Python dependencies
 
+**Debian/Ubuntu note**: `python3 -m venv` fails with "ensurepip is not
+available" unless `python3-venv` is installed separately — Debian/Ubuntu
+splits it out of the base `python3` package (Arch and Fedora don't need
+this extra step). `./install.sh`/`install.py` installs it automatically;
+if you're doing this by hand: `sudo apt install python3-venv` (or the
+version-specific `python3.13-venv` etc. the error message names) first.
+
 ```bash
 git clone https://github.com/yourusername/florinda-ai.git
 cd florinda-ai

@@ -66,7 +66,7 @@ _SYSTEM_PACKAGES = {
         "kitty", "alsa-utils", "tesseract-ocr", "tesseract-ocr-eng",
         "libgtk-3-bin", "docker-ce", "docker-ce-cli", "containerd.io",
         "docker-compose-plugin", "texlive", "texlive-latex-extra",
-        "lm-sensors", "grim",
+        "lm-sensors", "grim", "python3-venv",
     ],
     "dnf": [
         "kitty", "alsa-utils", "tesseract", "tesseract-langpack-eng", "gtk3",
