@@ -1,0 +1,41 @@
+python-dotenv>=1.2,<2
+google-genai>=1.62,<2
+pydantic>=2.12,<3
+colorama>=0.4.6,<1
+termcolor>=3.3,<4
+
+# Part B — screen_observer.py (stretch goal)
+numpy
+opencv-python-headless
+pytesseract
+pillow
+
+# Always-on service — voice_input.py (speech-to-text)
+faster-whisper>=1.2,<2
+
+# Always-on service — local_brain.py (Ollama client for background jobs)
+requests>=2.32,<3
+
+# web_clip.py (fetch a URL, convert to markdown)
+html2text>=2025.4,<2026
+
+# skill_manager.py (catches undefined-name bugs py_compile can't see)
+pyflakes>=3.4,<4
+
+# screencast_portal.py — WM-agnostic screen capture fallback for desktops
+# without `grim` (GNOME/KDE/X11). Needs system libdbus-1 + GObject
+# introspection dev headers to build (both are standard on any desktop
+# running xdg-desktop-portal at all, since it's a D-Bus/GLib service itself).
+dbus-python>=1.4,<2
+PyGObject>=3.56,<4
+
+# rdkit_runner.py (2D molecular structure diagrams from a SMILES string)
+rdkit>=2026.3,<2027
+
+# openai_backend.py — generic OpenAI-compatible provider (any FLORA_AI_PROVIDER=openai
+# endpoint: OpenAI, Azure OpenAI, Mistral, Groq, OpenRouter, self-hosted, ...)
+openai>=2.50,<3
+
+# anthropic_backend.py — native Anthropic API provider (FLORA_AI_PROVIDER=anthropic),
+# distinct from claude_cli_backend.py's subscription-based `claude` CLI route
+anthropic>=0.120,<1

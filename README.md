@@ -1,11 +1,13 @@
-# Hypr-AI
+# Florinda
 
 A Jarvis-like research assistant deeply integrated into your Linux laptop and Hyprland environment. Made for quantum computing research
+
+> **Naming note:** the assistant's name is **Florinda** — that's what it calls itself, what the GitHub repo/README use, and what any human-facing text says. Internally, the codebase uses the short technical token **flora** for anything invisible to an end user: file names (`flora_daemon.py`), environment variables (`FLORA_API_KEY`), the systemd service (`flora-daemon.service`), the Docker container (`flora-ai-searxng`), and the local project/data directories (`flora-ai`). If you're grepping the code and only find "flora", that's expected — it's the same project, just the plumbing side of the name rather than the public one.
 
 ## Overview
 
 
-Hypr-AI is a voice-activated, AI-powered research assistant designed specifically for Hyprland users. Get instant answers, perform research, and manage tasks without leaving your workflow.
+Florinda is a voice-activated, AI-powered research assistant designed specifically for Hyprland users. Get instant answers, perform research, and manage tasks without leaving your workflow.
 
 ## Features
 
@@ -17,10 +19,17 @@ Hypr-AI is a voice-activated, AI-powered research assistant designed specificall
 
 ## Installation
 
+See **[SETUP.md](SETUP.md)** for the full step-by-step guide, and
+**[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for exactly what needs
+to be installed on your OS and why. Short version:
+
 ```bash
-git clone https://github.com/yourusername/hypr-ai.git
-cd hypr-ai
-./install.sh
+git clone https://github.com/yourusername/florinda-ai.git
+cd florinda-ai
+python3 -m venv venv
+venv/bin/python3 -m pip install -r requirements.txt
+# then: create .env, install the systemd service, wire up your keybind —
+# see SETUP.md for the exact commands.
 ```
 
 ## Quick Start
@@ -28,15 +37,17 @@ cd hypr-ai
 1. Configure your Hyprland keybind
 2. Press your activation key
 3. Speak your query or type your request
-4. Hypr-AI processes and displays results
+4. Florinda processes and displays results
 
 ## Configuration
 
-Edit `~/.config/hypr-ai/config.toml` to customize:
-- API keys
-- Voice settings
-- Keybindings
-- Response behavior
+Edit `.env` in the project root to customize:
+- AI provider + API keys (see SETUP.md — Gemini, OpenAI-compatible, or Anthropic)
+- Voice model
+- Dozens of other settings (screen-watch interval, watcher cooldowns, timeouts, ...) — see `config.py` for the full list, all with working defaults
+
+Keybindings (push-to-talk, etc.) are configured in your window manager's own
+config, not here — see SETUP.md's Hyprland example.
 
 <details>
 <summary>Prompts, Behavior And How To Change</summary>
@@ -59,9 +70,19 @@ To Change The Prompts Of The AI You Can:
 
 ## Requirements
 
-- Linux with Hyprland
+- Linux, Wayland or X11
 - Python 3.8+
 - Internet connection
+- Screen-watching (passive OCR context-awareness) uses `grim` if present
+  (any wlroots compositor: Hyprland, Sway, river — zero extra setup), or
+  falls back automatically to the `org.freedesktop.portal.ScreenCast`
+  D-Bus portal on other desktops (GNOME, KDE, X11 session managers), which
+  needs `gstreamer`, `gst-plugin-pipewire`, and a running
+  `xdg-desktop-portal` backend for your desktop — standard on any of these
+  out of the box, nothing Hyprland-specific required.
+- Window/workspace control (`hyprland_bridge.py`) still requires Hyprland
+  specifically for now — a portability pass for that piece hasn't happened
+  yet.
 
 ## License
 
