@@ -28,3 +28,6 @@ pyflakes>=3.4,<4
 # running xdg-desktop-portal at all, since it's a D-Bus/GLib service itself).
 dbus-python>=1.4,<2
 PyGObject>=3.56,<4
+
+# rdkit_runner.py (2D molecular structure diagrams from a SMILES string)
+rdkit>=2026.3,<2027
