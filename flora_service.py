@@ -487,23 +487,37 @@ def main() -> None:
         sys.exit(1)
 
     settings = vault.settings
-    client = genai.Client(
-        api_key=settings.api_key,
-        # WHY retry_options attempts=1: see matching comment in
-        # flora_daemon.py's main() — google-genai's default 5 retries with
-        # exponential backoff turned a 10s timeout into a real 52s+ wait
-        # before the offline fallback ever got a chance to run.
-        http_options={
-            "timeout": int(settings.gemini_timeout_s * 1000),
-            "retry_options": {"attempts": 1},
-        },
-    )
+    # WHY only built when ai_provider is actually "gemini": see matching
+    # comment in flora_daemon.py's main() — genai.Client(api_key=None)
+    # raises immediately at construction, not lazily, which would crash
+    # startup for a user running purely on openai/anthropic.
+    client = None
+    if settings.ai_provider == "gemini":
+        client = genai.Client(
+            api_key=settings.api_key,
+            # WHY retry_options attempts=1: see matching comment in
+            # flora_daemon.py's main() — google-genai's default 5 retries with
+            # exponential backoff turned a 10s timeout into a real 52s+ wait
+            # before the offline fallback ever got a chance to run.
+            http_options={
+                "timeout": int(settings.gemini_timeout_s * 1000),
+                "retry_options": {"attempts": 1},
+            },
+        )
     processor = PromptProcessor(
         client, settings.ai_model, settings.ai_model_light,
         offline_model=settings.offline_fallback_model if settings.offline_fallback_enabled else None,
         ollama_host=settings.ollama_host,
         use_claude_cli_for_deep=settings.use_claude_cli_for_deep,
         claude_cli_timeout_s=settings.claude_cli_timeout_s,
+        ai_provider=settings.ai_provider,
+        openai_api_key=settings.openai_api_key,
+        openai_base_url=settings.openai_base_url,
+        openai_model=settings.openai_model,
+        openai_model_light=settings.openai_model_light,
+        anthropic_api_key=settings.anthropic_api_key,
+        anthropic_model=settings.anthropic_model,
+        anthropic_model_light=settings.anthropic_model_light,
     )
     terminal = SystemTerminal()
     audio = AudioEngine(settings.voice_model, settings.debug)

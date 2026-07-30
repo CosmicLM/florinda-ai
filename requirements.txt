@@ -31,3 +31,11 @@ PyGObject>=3.56,<4
 
 # rdkit_runner.py (2D molecular structure diagrams from a SMILES string)
 rdkit>=2026.3,<2027
+
+# openai_backend.py — generic OpenAI-compatible provider (any FLORA_AI_PROVIDER=openai
+# endpoint: OpenAI, Azure OpenAI, Mistral, Groq, OpenRouter, self-hosted, ...)
+openai>=2.50,<3
+
+# anthropic_backend.py — native Anthropic API provider (FLORA_AI_PROVIDER=anthropic),
+# distinct from claude_cli_backend.py's subscription-based `claude` CLI route
+anthropic>=0.120,<1
