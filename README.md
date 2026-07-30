@@ -1,4 +1,4 @@
-# Florinda ✶
+# Florinda AI✶
 
 A Jarvis-like research assistant deeply integrated into your Linux laptop and Hyprland environment. Made for quantum computing research
 
