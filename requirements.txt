@@ -23,9 +23,11 @@ html2text>=2025.4,<2026
 pyflakes>=3.4,<4
 
 # screencast_portal.py — WM-agnostic screen capture fallback for desktops
-# without `grim` (GNOME/KDE/X11). Needs system libdbus-1 + GObject
-# introspection dev headers to build (both are standard on any desktop
-# running xdg-desktop-portal at all, since it's a D-Bus/GLib service itself).
+# without `grim` (GNOME/KDE/X11). Both packages below have no prebuilt wheel
+# and compile from source on every install — needs a C compiler (gcc/clang)
+# plus system libdbus-1 + GObject introspection dev headers (all standard on
+# any desktop running xdg-desktop-portal at all, since it's a D-Bus/GLib
+# service itself; see SYSTEM_REQUIREMENTS.md for exact per-distro packages).
 dbus-python>=1.4,<2
 PyGObject>=3.56,<4
 
