@@ -199,9 +199,20 @@ Other compositors/DEs generally handle this ordering via
 
 `install.py` does this automatically for **Hyprland** (classic `.conf`
 config only — see below), **Sway**, and **GNOME**, detecting your desktop
-and confirming before it edits anything. What follows is what it's actually
-doing, for KDE (not auto-configured — see the note at the end) or if you'd
-rather do it by hand.
+and confirming before it edits anything. It also asks which key combo you
+want (default `Super+Shift+Space`, typed as e.g. `Ctrl+Alt+F` — one
+modifier-and-key combo you answer once, translated into whichever of the
+three WMs' own bind syntax applies) rather than assuming everyone wants the
+same default. After writing the config, it confirms the bind actually took
+— for Hyprland by asking the running compositor itself (`hyprctl binds -j`)
+whether both the press and release binds are registered, for GNOME by
+reading every value back from `gsettings` and comparing it to what was
+just set, and for Sway by checking that `swaymsg reload` accepted the
+config without error (Sway's IPC has no "list binds" query to check
+against, unlike Hyprland's). A failed confirmation prints a warning
+instead of claiming success. What follows is what it's actually doing, for
+KDE (not auto-configured — see the note at the end) or if you'd rather do
+it by hand.
 
 **Hyprland (classic `.conf` config)** — a real keybind, held down to talk
 (`bind`/`bindr` fire on press/release respectively):
@@ -287,7 +298,9 @@ hl.window_rule({ name = "flora-ai-figure-size",  match = { class = "^(flora-figu
 hl.window_rule({ name = "flora-ai-figure-center",match = { class = "^(flora-figure)$" }, center = true })
 ```
 
-## 7. (Optional) Waybar status widget
+## 7. (Optional) Status widget (Waybar or GNOME Shell)
+
+### Waybar
 
 Add a `custom/flora` module to your waybar config:
 
@@ -313,6 +326,29 @@ talk hook, just bound to a right-click instead of a keybind. Skip this
 entire module if you don't use waybar; it's cosmetic/convenience, not
 required for Florinda to function — `systemctl --user stop/start
 flora-daemon.service` does the same thing from a terminal.
+
+### GNOME Shell
+
+GNOME has no Waybar, so the equivalent is a small GNOME Shell extension —
+`gnome-extension/florinda-status@florinda-ai/` in this repo — showing the
+same states (Idle/Listening/Thinking/Talking/Watching/Offline) as a top-bar
+label, with a menu to stop/start `flora-daemon.service` and open the
+activity log. `install.py` installs and enables this automatically when it
+detects a GNOME desktop (confirming first, same as every other step); to do
+it by hand:
+
+```bash
+mkdir -p ~/.local/share/gnome-shell/extensions
+cp -r gnome-extension/florinda-status@florinda-ai \
+    ~/.local/share/gnome-shell/extensions/florinda-status@florinda-ai
+gnome-extensions enable florinda-status@florinda-ai
+```
+
+If `gnome-extensions enable` doesn't make it appear right away (can happen
+right after copying in a brand-new extension, especially on Wayland), log
+out and back in — it'll already be enabled once the session restarts.
+Requires GNOME Shell 45+ (the ESM extension API); skip this entirely if
+you don't use GNOME, same as skipping the Waybar module on other desktops.
 
 ## 8. Verify end-to-end
 

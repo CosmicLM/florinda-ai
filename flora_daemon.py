@@ -64,12 +64,23 @@ _COMMAND_REPEAT_BLOCK_S = 90.0  # hard refuse to re-run the literal same command
 # do), this is injected automatically as $QISKIT_NOTES — but ONLY on turns
 # that look Qiskit-related, so it isn't dead weight on every other request.
 _QISKIT_KEYWORD_RE = re.compile(r"\b(qiskit|quantum circuit|qubit|quantum gate)\b", re.IGNORECASE)
-_QISKIT_NOTES = """Verified against the REAL installed environment (qiskit 2.4.1, qiskit-aer 0.17.2) — these are known-recurring mistakes, not general Qiskit knowledge:
+# WHY an f-string with a computed repo root, not a hardcoded path: verified
+# live as a real bug (not theoretical) — this used to hardcode this dev
+# machine's own absolute path, and a fresh install on a different
+# machine/user tried to run the literal string
+# `/home/manjaro/Projects/flora-ai/tools/qiskit_docs.py`, which doesn't
+# exist there. This string is inserted as the raw VALUE of INSTRUCTION.md's
+# $QISKIT_NOTES placeholder (see processor.py's _load_system_prompt) — a
+# single-pass Template.safe_substitute(), so a literal "$PROJECT_DIR" typed
+# in here would NOT get re-substituted; the real path has to be filled in
+# at the point this constant is built instead.
+_REPO_ROOT = Path(__file__).resolve().parent
+_QISKIT_NOTES = f"""Verified against the REAL installed environment (qiskit 2.4.1, qiskit-aer 0.17.2) — these are known-recurring mistakes, not general Qiskit knowledge:
 - `from qiskit.primitives import Sampler` (or Estimator) FAILS on this install — those names don't exist there anymore. For Aer-backed sampling use `from qiskit_aer.primitives import Sampler, SamplerV2`.
 - For the common case of "run this circuit and get counts", skip primitives entirely — the simplest working pattern is: `from qiskit_aer import AerSimulator` then `AerSimulator().run(circuit, shots=1024).result().get_counts()`.
 - `some_gate_call(...).c_if(...)` FAILS on this install (AttributeError — removed from InstructionSet). For classically-conditioned gates, use the context-manager form instead: `with qc.if_test((creg_or_bit, value)): qc.x(1)` — the conditioned gate(s) go inside the `with` block.
 - Both `Aer.get_backend('qasm_simulator')` and `AerSimulator()` work fine on this install — no need to guess between them.
-- Not sure about something else? Run `python3 /home/manjaro/Projects/flora-ai/tools/qiskit_docs.py search <keyword>` or `... lookup <dotted.path>` first — it reads the real installed package, not a guess."""
+- Not sure about something else? Run `python3 {_REPO_ROOT}/tools/qiskit_docs.py search <keyword>` or `... lookup <dotted.path>` first — it reads the real installed package, not a guess."""
 
 
 def _is_auto_safe_command(command: str) -> bool:
