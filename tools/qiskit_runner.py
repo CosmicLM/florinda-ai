@@ -1,13 +1,21 @@
-"""qiskit_runner.py — runs real Qiskit code using the actual Qiskit
-environment at ~/Projects/quantum-projects/venv (qiskit 2.4.1 + qiskit-aer),
-so Florinda can verify a circuit actually works instead of only reasoning about
-it from training data or notes.
+"""qiskit_runner.py — runs real Qiskit code using a separate, already-installed
+Qiskit environment (default: ~/Projects/quantum-projects/venv, override with
+FLORA_QISKIT_VENV_PYTHON), so Florinda can verify a circuit actually works
+instead of only reasoning about it from training data or notes.
 
 WHY a dedicated venv instead of installing qiskit into flora-ai's own venv:
-this project already has a real, working Qiskit environment (qiskit-aer,
-matplotlib, pylatexenc already there) — reusing it avoids duplicating a
-large dependency tree and stays consistent with the user's actual toolchain,
-rather than flora-ai carrying its own separate, potentially-drifting copy.
+qiskit/qiskit-aer/matplotlib are a large, optional dependency tree that most
+Florinda features don't need — keeping it in a separate venv (pointed at via
+FLORA_QISKIT_VENV_PYTHON, or created wherever you like) means Qiskit support
+stays opt-in instead of bloating every install, and reuses whatever Qiskit
+environment you may already have instead of flora-ai carrying its own
+separate, potentially-drifting copy.
+
+WHY this is configurable rather than a fixed path: verified live — this
+used to hardcode this dev machine's own personal Qiskit venv location as
+the only path it would ever look at, which obviously doesn't exist on any
+other machine. See SYSTEM_REQUIREMENTS.md for how to set one up if you
+don't already have a Qiskit environment somewhere.
 
 WHY MPLBACKEND=Agg: a circuit diagram or histogram plot often ends with
 plt.show(), which would hang waiting for a display in this headless
@@ -43,7 +51,10 @@ from pathlib import Path
 
 from figure_popup import popup_image
 
-QUANTUM_VENV_PYTHON = Path.home() / "Projects/quantum-projects/venv/bin/python3"
+QUANTUM_VENV_PYTHON = Path(
+    os.environ.get("FLORA_QISKIT_VENV_PYTHON")
+    or (Path.home() / "Projects/quantum-projects/venv/bin/python3")
+)
 FIGURES_DIR = Path.home() / ".local/share/flora-ai/qiskit-figures"
 # WHY a separate, never-pruned location: FIGURES_DIR is auto-cleaned (see
 # _MAX_RETAINED_RUNS below) since its figures are only ever meant for the
@@ -127,7 +138,10 @@ def run(source: str) -> tuple[str, list[str]]:
     left open by `source` (a circuit diagram, a histogram, ...) is saved as
     a PNG automatically — no savefig() needed in the Qiskit code itself."""
     if not QUANTUM_VENV_PYTHON.exists():
-        raise QiskitRunnerError(f"quantum-projects venv not found at {QUANTUM_VENV_PYTHON}")
+        raise QiskitRunnerError(
+            f"no Qiskit venv found at {QUANTUM_VENV_PYTHON} — set FLORA_QISKIT_VENV_PYTHON "
+            "to point at one, or create one (see SYSTEM_REQUIREMENTS.md's Qiskit section)"
+        )
 
     _prune_old_figures()
     run_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"

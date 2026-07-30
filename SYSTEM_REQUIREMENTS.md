@@ -88,7 +88,7 @@ specifically right now. Nothing else in this list does.
 | What | Needed for |
 |---|---|
 | Hyprland + `hyprctl` (bundled with it) | `hyprland_bridge.py` |
-| **waybar** (optional) | The status widget showing idle/listening/thinking/talking — works on any wlroots compositor, not GNOME/KDE; skip it if you don't want a status widget |
+| **waybar** (optional) | The status widget showing idle/listening/thinking/talking — works on any wlroots compositor, not GNOME/KDE; skip it if you don't want a status widget. GNOME's own equivalent is the `gnome-extension/florinda-status@florinda-ai/` GNOME Shell extension (GNOME Shell 45+) — `install.py` installs it automatically on a detected GNOME desktop |
 | **ydotool** (optional) | Only used by some autonomously-created skills (`skills/` — gitignored, generated at runtime), not by any tracked source file |
 
 A portability pass for `hyprland_bridge.py` itself (supporting Sway natively,
@@ -99,7 +99,8 @@ etc.) hasn't happened yet — see the README's Requirements section.
 | What | Package | Needed for |
 |---|---|---|
 | TeX Live: `pdflatex`, `pdftoppm`, plus the `standalone`, `varwidth`, `preview` LaTeX packages | `texlive-core`, `texlive-latexextra` (or your distro's equivalent bundle) | LaTeX rendering (`latex_runner.py`) |
-| A **separate** Qiskit virtualenv at `~/Projects/quantum-projects/venv` | your own `pip install qiskit qiskit-aer matplotlib` in that venv | Qiskit circuit verification (`qiskit_runner.py`) — deliberately NOT bundled into Florinda's own venv, see that file's own WHY note |
+| `fd` + `ripgrep` (`rg`) | `fd`, `ripgrep` (Debian/Ubuntu/Fedora: `fd-find` — installs as `fdfind`, not `fd`; `file_search.py` resolves this itself at runtime, no symlink/alias needed) | Whole-filesystem find/grep (`file_search.py`) — was missing from this list and `install.py` entirely until a live report showed it crashing with a raw `FileNotFoundError` on a fresh install that (correctly) didn't already have these |
+| A **separate** Qiskit virtualenv (default `~/Projects/quantum-projects/venv`, override with `FLORA_QISKIT_VENV_PYTHON`) | your own `pip install qiskit qiskit-aer matplotlib` in that venv | Qiskit circuit verification (`qiskit_runner.py`/`qiskit_docs.py`) — deliberately NOT bundled into Florinda's own venv, see that file's own WHY note. Entirely optional: without it, Qiskit requests fail with a clear error naming exactly what's missing; every other feature works fine regardless |
 | **Ollama**, running locally (`localhost:11434` by default) | `ollama` + at least one pulled model | Background-job local model (`local_brain.py`, backing the passive watchers) and the optional offline fallback when the primary AI provider is unreachable |
 | `lm_sensors` (`sensors` command) | `lm_sensors` | `thermal_monitor.py` — currently a standalone utility, not yet wired into the running service |
 | `nvidia-smi` (optional, NVIDIA GPUs only) | proprietary NVIDIA driver package | Same file, optional GPU thermal reads |

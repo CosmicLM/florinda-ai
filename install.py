@@ -61,6 +61,12 @@ _SYSTEM_PACKAGES = {
         "kitty", "alsa-utils", "tesseract", "tesseract-data-eng", "gtk3",
         "docker", "docker-compose", "texlive-core", "texlive-latexextra",
         "lm_sensors", "grim",
+        # fd/ripgrep back file_search.py's whole-filesystem find/grep — were
+        # missing from this list entirely until a live report showed
+        # file_search.py crashing with a raw FileNotFoundError traceback on
+        # a fresh install that (correctly) didn't already have them. Arch's
+        # fd package installs the binary as plain `fd` (no name collision).
+        "fd", "ripgrep",
         # Build deps for dbus-python/PyGObject (pip has no prebuilt wheel for
         # either — both compile from source on every install). base-devel
         # brings gcc/pkgconf; dbus's Arch package already ships its own dev
@@ -85,6 +91,12 @@ _SYSTEM_PACKAGES = {
         # PyGObject>=3.56 from source at all.
         "build-essential", "pkg-config", "python3-dev", "libdbus-1-dev",
         "libglib2.0-dev", "libgirepository-2.0-dev", "libcairo2-dev",
+        # WHY fd-find, not fd: Debian/Ubuntu's own `fd` package name is
+        # already taken by an unrelated, preexisting tool ("fastdate") —
+        # fd-find installs its binary as `fdfind` instead. file_search.py
+        # resolves this itself at runtime (tries `fd`, falls back to
+        # `fdfind`), so no symlink/alias is needed here.
+        "fd-find", "ripgrep",
     ],
     "dnf": [
         "kitty", "alsa-utils", "tesseract", "tesseract-langpack-eng", "gtk3",
@@ -93,6 +105,10 @@ _SYSTEM_PACKAGES = {
         # Same build-from-source deps as above, Fedora package names.
         "gcc", "pkgconf-pkg-config", "python3-devel", "dbus-devel",
         "glib2-devel", "gobject-introspection-devel", "cairo-devel",
+        # Same fd naming quirk as Debian/Ubuntu — verified against Fedora's
+        # own package page: Fedora's fd-find ALSO installs as `fdfind`, not
+        # `fd` (the name collision isn't Debian-specific).
+        "fd-find", "ripgrep",
     ],
 }
 

@@ -21,7 +21,7 @@ correctly named the same or very similarly on Debian/Ubuntu/Fedora.
 ```bash
 sudo pacman -S python kitty alsa-utils tesseract tesseract-data-eng gtk3 \
     docker docker-compose texlive-core texlive-latexextra lm_sensors grim \
-    base-devel gobject-introspection cairo
+    base-devel gobject-introspection cairo fd ripgrep
 
 # piper-tts isn't in the official repos — install from the AUR:
 yay -S piper-tts
@@ -29,6 +29,17 @@ yay -S piper-tts
 
 # Enable Docker (needed for the self-hosted SearXNG search container):
 sudo systemctl enable --now docker
+```
+
+`fd`/`ripgrep` back `file_search.py`'s whole-filesystem find/grep. On
+Debian/Ubuntu/Fedora the package is `fd-find`, not `fd` (an unrelated
+package already owns that name there), and it installs its binary as
+`fdfind` — `file_search.py` resolves this itself at runtime, so no
+symlink/alias setup is needed either way:
+
+```bash
+sudo apt install fd-find ripgrep      # Debian/Ubuntu
+sudo dnf install fd-find ripgrep      # Fedora
 ```
 
 `base-devel`/`gobject-introspection`/`cairo` (Debian/Ubuntu:
@@ -373,6 +384,31 @@ echo '\[ E = mc^2 \]' | venv/bin/python3 latex_runner.py run
 If push-to-talk doesn't trigger anything, check `~/.local/share/flora-ai/
 ptt-hook.log` first (confirms the keybind fired at all) before suspecting the
 service itself.
+
+## (Optional) Qiskit circuit verification
+
+`qiskit_runner.py`/`qiskit_docs.py` let Florinda actually run Qiskit code
+you give it (or describe its own suggestions to you) instead of just
+reasoning about whether a circuit would work. This is entirely optional —
+skip it and everything else still works — and deliberately NOT part of
+flora-ai's own venv, since qiskit/qiskit-aer/matplotlib are a large
+dependency tree most installs don't need. Set up a separate venv:
+
+```bash
+python3 -m venv ~/Projects/quantum-projects/venv
+~/Projects/quantum-projects/venv/bin/pip install qiskit qiskit-aer matplotlib
+```
+
+That default path is what both scripts look for out of the box. If you
+already have a Qiskit environment somewhere else, point at it instead:
+
+```bash
+# in .env
+FLORA_QISKIT_VENV_PYTHON="/path/to/your/venv/bin/python3"
+```
+
+Without either, a Qiskit request just fails with a clear error naming
+exactly what's missing — not a crash, and nothing else is affected.
 
 ## Updating an existing install
 

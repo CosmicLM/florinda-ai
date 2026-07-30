@@ -23,6 +23,7 @@ including hidden files and anything a .gitignore would otherwise hide, is in
 scope. Root defaults to `/` — the whole system — not just $HOME.
 """
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -48,9 +49,26 @@ class FileSearchError(Exception):
     """Raised when fd/ripgrep can't run or the search exceeds its time budget."""
 
 
+def _resolve_fd_binary() -> str:
+    """Debian/Ubuntu's `fd-find` package installs its binary as `fdfind`,
+    not `fd` — an unrelated, preexisting Debian package called `fd`
+    ("fastdate") already owns that name there. Arch and Fedora's `fd`
+    packages don't have this collision and install it as plain `fd`.
+    Resolved at call time so this works regardless of which the running
+    system actually has, rather than assuming one naming convention."""
+    return "fd" if shutil.which("fd") else "fdfind"
+
+
 def find_by_name(pattern: str, root: str = _FIND_DEFAULT_ROOT) -> str:
+    fd_bin = _resolve_fd_binary()
+    if not shutil.which(fd_bin):
+        raise FileSearchError(
+            "`fd` not found on PATH — install the `fd` package (Arch/Fedora) "
+            "or `fd-find` (Debian/Ubuntu, which installs it as `fdfind` "
+            "instead — see SYSTEM_REQUIREMENTS.md)"
+        )
     command = [
-        "fd", "--hidden", "--no-ignore", "--absolute-path",
+        fd_bin, "--hidden", "--no-ignore", "--absolute-path",
         *[f"--exclude={path}" for path in _EXCLUDED_DIRS],
         pattern, root,
     ]
@@ -62,6 +80,10 @@ def find_by_name(pattern: str, root: str = _FIND_DEFAULT_ROOT) -> str:
 
 
 def search_content(query: str, root: str = _GREP_DEFAULT_ROOT) -> str:
+    if not shutil.which("rg"):
+        raise FileSearchError(
+            "`rg` (ripgrep) not found on PATH — install the `ripgrep` package; see SYSTEM_REQUIREMENTS.md"
+        )
     command = [
         "rg", "--hidden", "--no-ignore", "-l",
         *[f"--glob=!{path}/**" for path in _EXCLUDED_DIRS],
