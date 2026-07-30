@@ -30,6 +30,32 @@ yay -S piper-tts
 sudo systemctl enable --now docker
 ```
 
+**Ubuntu/Debian note**: `docker-compose-plugin` isn't in the default apt
+repos (`E: Unable to locate package docker-compose-plugin`) — it only ships
+from Docker's own apt repo, not your distro's. Add that repo first, then
+install Docker's own packages instead of `docker.io`:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+(Swap `ubuntu` for `debian` in the two URLs above if you're on Debian
+proper.) `./install.sh`/`install.py` does this automatically — confirming
+before adding the repo — so this is only needed if you're installing by
+hand.
+
 If your desktop isn't a wlroots compositor (not Hyprland/Sway/river) — e.g.
 GNOME or KDE — skip `grim` and instead make sure `xdg-desktop-portal` plus
 your desktop's own backend package (`xdg-desktop-portal-gnome`,
