@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from string import Template
 from typing import Callable, Iterator, Literal, Optional
 
@@ -19,6 +20,16 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_PROMPT_PATH = "./INSTRUCTION.md"
 END_OF_COMMAND_TOKEN = "<END>"
+# WHY computed here instead of read from cwd: INSTRUCTION.md's own tool
+# invocation examples (`python3 $PROJECT_DIR/tools/...`) used to hardcode
+# this project's dev machine's absolute path — verified live as a real bug,
+# not theoretical: a fresh install on a different machine/user tried to run
+# `/home/manjaro/Projects/flora-ai/tools/task_runner.py`, which obviously
+# doesn't exist there. processor.py is always at the repo root (see the
+# folder reorg's own root/entry-point layer), so this is a reliable
+# absolute path regardless of the daemon's cwd or which user/machine it's
+# running on.
+PROJECT_DIR = str(Path(__file__).resolve().parent)
 
 _CLAUDE_FIELD_SPLIT_RE = re.compile(r"(?=\bSPEECH:|\bRECURSIVE:|\bINFO:)")
 
@@ -782,5 +793,9 @@ class PromptProcessor:
         with open(self._prompt_path, "r") as prompt_file:
             template = Template(prompt_file.read())
         return template.safe_substitute(
-            EOC=END_OF_COMMAND_TOKEN, SYS_INFO=sys_info, RECENT_ACTIONS=recent_actions, QISKIT_NOTES=qiskit_notes
+            EOC=END_OF_COMMAND_TOKEN,
+            SYS_INFO=sys_info,
+            RECENT_ACTIONS=recent_actions,
+            QISKIT_NOTES=qiskit_notes,
+            PROJECT_DIR=PROJECT_DIR,
         )

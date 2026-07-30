@@ -493,8 +493,83 @@ hl.window_rule({{ name = "flora-ai-figure-size",  match = {{ class = "^(flora-fi
 hl.window_rule({{ name = "flora-ai-figure-center",match = {{ class = "^(flora-figure)$" }}, center = true }})
 """
 
-_DEFAULT_HOLD_KEYBIND = "SUPER SHIFT, SPACE"  # Hyprland-style "MODS, KEY" — translated per-WM below
-_DEFAULT_TOGGLE_LABEL = "Super+Shift+Space"
+_DEFAULT_KEY_COMBO = "Super+Shift+Space"  # WM-agnostic form the user types/accepts; translated per-WM below
+
+# WHY a WM-agnostic combo instead of asking for each WM's own syntax:
+# Hyprland ("MODS, KEY"), Sway ("$mod+shift+space"), and GNOME
+# ("<Super><Shift>space") all spell the same physical key combo differently
+# — asking the user to already know whichever one applies to their WM would
+# just be a worse version of the same prompt. One canonical name per
+# modifier (Super/Shift/Ctrl/Alt) means the user only ever answers once,
+# regardless of which of the three auto-configurable WMs they're on.
+_MOD_ALIASES = {
+    "super": "SUPER", "win": "SUPER", "windows": "SUPER", "meta": "SUPER", "cmd": "SUPER",
+    "shift": "SHIFT",
+    "ctrl": "CTRL", "control": "CTRL",
+    "alt": "ALT",
+}
+
+
+def _parse_key_combo(combo: str) -> tuple[list[str], str]:
+    """'Super+Shift+Space' -> (['SUPER', 'SHIFT'], 'SPACE'). Raises
+    InstallError on anything that isn't at least one recognized modifier
+    plus a key — never silently accepts something we can't actually
+    translate into a real bind."""
+    parts = [p.strip() for p in combo.replace("-", "+").split("+") if p.strip()]
+    if len(parts) < 2:
+        raise InstallError(
+            f"Invalid key combo {combo!r} — expected at least one modifier and a "
+            "key, e.g. 'Super+Shift+Space'"
+        )
+    *mod_parts, key = parts
+    mods: list[str] = []
+    for mod in mod_parts:
+        canonical = _MOD_ALIASES.get(mod.lower())
+        if canonical is None:
+            raise InstallError(
+                f"Unknown modifier {mod!r} in {combo!r} — supported: Super, Shift, Ctrl, Alt"
+            )
+        if canonical not in mods:
+            mods.append(canonical)
+    if not key:
+        raise InstallError(f"Invalid key combo {combo!r} — missing a key after the modifiers")
+    return mods, key.upper()
+
+
+def _combo_label(mods: list[str], key: str) -> str:
+    return "+".join(mod.capitalize() for mod in mods) + "+" + key.capitalize()
+
+
+def _combo_to_hyprland(mods: list[str], key: str) -> str:
+    return f"{' '.join(mods)}, {key}"
+
+
+def _combo_to_sway(mods: list[str], key: str) -> str:
+    # WHY $mod for SUPER specifically, not the literal keysym: Sway's own
+    # config already defines `$mod` (almost always Mod4/Super) — reusing it
+    # matches however the user's own config defines their modifier, rather
+    # than assuming Super specifically. Other modifiers don't have this
+    # indirection in a stock Sway config, so they're used literally.
+    sway_names = {"SUPER": "$mod", "SHIFT": "shift", "CTRL": "ctrl", "ALT": "alt"}
+    return "+".join(sway_names[mod] for mod in mods) + "+" + key.lower()
+
+
+def _combo_to_gnome(mods: list[str], key: str) -> str:
+    return "".join(f"<{mod.capitalize()}>" for mod in mods) + key.lower()
+
+
+def _prompt_key_combo(prompter: Prompter) -> tuple[list[str], str, str]:
+    """Returns (mods, key, label). Falls back to the default combo (with a
+    printed warning, not a crash) if the user's input can't be parsed —
+    getting the keybind wrong shouldn't take down the rest of the install."""
+    raw = prompter.text("ptt_key_combo", "Push-to-talk key combo", default=_DEFAULT_KEY_COMBO)
+    try:
+        mods, key = _parse_key_combo(raw)
+    except InstallError as error:
+        print(f"{error} — falling back to the default ({_DEFAULT_KEY_COMBO}).")
+        mods, key = _parse_key_combo(_DEFAULT_KEY_COMBO)
+    return mods, key, _combo_label(mods, key)
+
 
 _HYPRLAND_PTT_CONF_NAME = "florinda-ptt.conf"
 _HYPRLAND_PTT_CONF_TEMPLATE = """# Florinda push-to-talk (added by install.py) — hold {label} to talk.
@@ -546,6 +621,33 @@ def _hyprland_uses_classic_conf() -> bool:
     return len(conf_path.read_text().strip().splitlines()) > 3
 
 
+def _confirm_hyprland_bind(mods_key: str) -> None:
+    """Real confirmation, not an assumption: asks the running compositor
+    itself (via `hyprctl binds -j`, not just re-reading the file we wrote)
+    whether it actually registered both the PRESS and RELEASE binds —
+    catches a bind Hyprland silently rejected (bad syntax, key name typo)
+    that a successful `hyprctl reload` exit code alone wouldn't surface."""
+    if not shutil.which("hyprctl"):
+        print("hyprctl not found — can't confirm the bind registered; verify manually with `hyprctl binds`.")
+        return
+    result = subprocess.run(["hyprctl", "-j", "binds"], capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Couldn't query hyprctl binds to confirm: {result.stderr.strip()}")
+        return
+    try:
+        binds = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print("Couldn't parse `hyprctl binds -j` output to confirm — verify manually.")
+        return
+    found_press = any("flora_ptt_hook.py" in b.get("arg", "") and "PRESS" in b.get("arg", "") for b in binds)
+    found_release = any("flora_ptt_hook.py" in b.get("arg", "") and "RELEASE" in b.get("arg", "") for b in binds)
+    if found_press and found_release:
+        print(f"Confirmed: Hyprland has both binds registered for {mods_key}.")
+    else:
+        missing = ", ".join(name for name, ok in (("PRESS", found_press), ("RELEASE", found_release)) if not ok)
+        print(f"Warning: hyprctl binds doesn't show the {missing} bind — check hyprland.conf for a typo.")
+
+
 def _setup_hyprland_keybind(prompter: Prompter) -> None:
     if not _hyprland_uses_classic_conf():
         print(
@@ -554,17 +656,13 @@ def _setup_hyprland_keybind(prompter: Prompter) -> None:
         )
         print(_HYPRLAND_LUA_SNIPPET.format(repo_root=REPO_ROOT))
         return
-    if not prompter.confirm(
-        "setup_hyprland_keybind", f"Auto-configure the push-to-talk keybind (hold {_DEFAULT_TOGGLE_LABEL})?"
-    ):
+    mods, key, label = _prompt_key_combo(prompter)
+    if not prompter.confirm("setup_hyprland_keybind", f"Auto-configure the push-to-talk keybind (hold {label})?"):
         return
+    mods_key = _combo_to_hyprland(mods, key)
     hypr_dir = Path.home() / ".config/hypr"
     ptt_conf = hypr_dir / _HYPRLAND_PTT_CONF_NAME
-    ptt_conf.write_text(
-        _HYPRLAND_PTT_CONF_TEMPLATE.format(
-            label=_DEFAULT_TOGGLE_LABEL, mods_key=_DEFAULT_HOLD_KEYBIND, repo_root=REPO_ROOT
-        )
-    )
+    ptt_conf.write_text(_HYPRLAND_PTT_CONF_TEMPLATE.format(label=label, mods_key=mods_key, repo_root=REPO_ROOT))
     main_conf = hypr_dir / "hyprland.conf"
     source_line = f"\n# Florinda push-to-talk\nsource = ~/.config/hypr/{_HYPRLAND_PTT_CONF_NAME}\n"
     if _backup_and_append(main_conf, _HYPRLAND_PTT_CONF_NAME, source_line):
@@ -574,26 +672,21 @@ def _setup_hyprland_keybind(prompter: Prompter) -> None:
     if shutil.which("hyprctl"):
         result = subprocess.run(["hyprctl", "reload"], capture_output=True, text=True)
         print("hyprctl reload: " + ("OK" if result.returncode == 0 else result.stderr.strip()))
+        if result.returncode == 0:
+            _confirm_hyprland_bind(mods_key)
 
 
 def _setup_sway_keybind(prompter: Prompter) -> None:
-    if not prompter.confirm(
-        "setup_sway_keybind", f"Auto-configure the push-to-talk keybind (hold {_DEFAULT_TOGGLE_LABEL})?"
-    ):
+    mods, key, label = _prompt_key_combo(prompter)
+    if not prompter.confirm("setup_sway_keybind", f"Auto-configure the push-to-talk keybind (hold {label})?"):
         return
     sway_dir = Path.home() / ".config/sway"
     if not sway_dir.exists():
         print(f"{sway_dir} not found — skipping. See SETUP.md to wire this up manually.")
         return
     ptt_conf = sway_dir / _SWAY_PTT_CONF_NAME
-    # WHY $mod+shift+space, not the literal keysym names: Sway's own config
-    # already defines `$mod` (almost always Mod4/Super) — reusing it here
-    # matches however the user's own config defines their modifier, rather
-    # than assuming Super specifically.
-    sway_combo = "$mod+shift+space"
-    ptt_conf.write_text(
-        _SWAY_PTT_CONF_TEMPLATE.format(label=_DEFAULT_TOGGLE_LABEL, sway_combo=sway_combo, repo_root=REPO_ROOT)
-    )
+    sway_combo = _combo_to_sway(mods, key)
+    ptt_conf.write_text(_SWAY_PTT_CONF_TEMPLATE.format(label=label, sway_combo=sway_combo, repo_root=REPO_ROOT))
     main_conf = sway_dir / "config"
     include_line = f"\n# Florinda push-to-talk\ninclude {_SWAY_PTT_CONF_NAME}\n"
     if _backup_and_append(main_conf, _SWAY_PTT_CONF_NAME, include_line):
@@ -602,7 +695,16 @@ def _setup_sway_keybind(prompter: Prompter) -> None:
         print(f"Wrote {ptt_conf} (already included from {main_conf}).")
     if shutil.which("swaymsg"):
         result = subprocess.run(["swaymsg", "reload"], capture_output=True, text=True)
-        print("swaymsg reload: " + ("OK" if result.returncode == 0 else result.stderr.strip()))
+        # WHY a successful reload IS the confirmation here, unlike Hyprland:
+        # Sway's IPC protocol has no "list active binds" query to check
+        # against (verified against Sway's documented message types — only
+        # Hyprland exposes `binds -j`), so a config Sway actually accepted
+        # without error is the strongest signal available that our exact
+        # bindsym lines parsed correctly, short of physically pressing the key.
+        if result.returncode == 0:
+            print(f"Confirmed: sway accepted the reloaded config — {sway_combo} is active.")
+        else:
+            print(f"swaymsg reload reported an error — the bind may not be active: {result.stderr.strip()}")
 
 
 def _gnome_schema_available(schema: str) -> bool:
@@ -611,9 +713,10 @@ def _gnome_schema_available(schema: str) -> bool:
 
 
 def _setup_gnome_keybind(prompter: Prompter) -> None:
+    mods, key, label = _prompt_key_combo(prompter)
     if not prompter.confirm(
         "setup_gnome_keybind",
-        f"Auto-configure a push-to-talk keybind (press {_DEFAULT_TOGGLE_LABEL} to start, press again to stop)?",
+        f"Auto-configure a push-to-talk keybind (press {label} to start, press again to stop)?",
     ):
         return
     # WHY toggle, not hold: GNOME's custom-keybinding schema only fires a
@@ -637,6 +740,8 @@ def _setup_gnome_keybind(prompter: Prompter) -> None:
             "skipping. See SETUP.md to wire up a keybind manually."
         )
         return
+    binding = _combo_to_gnome(mods, key)
+    command = f"python3 -S {REPO_ROOT}/scripts/flora_ptt_toggle_hook.py"
     path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/florinda-ptt/"
     existing = subprocess.run(["gsettings", "get", base, "custom-keybindings"], capture_output=True, text=True)
     current_paths = existing.stdout.strip()
@@ -648,9 +753,94 @@ def _setup_gnome_keybind(prompter: Prompter) -> None:
         _run(["gsettings", "set", base, "custom-keybindings", new_paths])
     keybinding_schema = f"{base}.custom-keybinding:{path}"
     _run(["gsettings", "set", keybinding_schema, "name", "Florinda push-to-talk"])
-    _run(["gsettings", "set", keybinding_schema, "command", f"python3 -S {REPO_ROOT}/scripts/flora_ptt_toggle_hook.py"])
-    _run(["gsettings", "set", keybinding_schema, "binding", "<Super><Shift>space"])
-    print("GNOME keybinding registered.")
+    _run(["gsettings", "set", keybinding_schema, "command", command])
+    _run(["gsettings", "set", keybinding_schema, "binding", binding])
+    _confirm_gnome_keybind(base, path, keybinding_schema, command, binding)
+
+
+def _confirm_gnome_keybind(base: str, path: str, keybinding_schema: str, command: str, binding: str) -> None:
+    """Real confirmation: reads every value back from gsettings rather than
+    assuming the `gsettings set` calls above landed — catches a schema
+    silently rejecting a value (e.g. a binding string GNOME doesn't
+    recognize) that a zero exit code from `set` wouldn't necessarily
+    surface on its own."""
+    paths = subprocess.run(["gsettings", "get", base, "custom-keybindings"], capture_output=True, text=True).stdout.strip()
+    got_name = subprocess.run(["gsettings", "get", keybinding_schema, "name"], capture_output=True, text=True).stdout.strip().strip("'")
+    got_command = subprocess.run(["gsettings", "get", keybinding_schema, "command"], capture_output=True, text=True).stdout.strip().strip("'")
+    got_binding = subprocess.run(["gsettings", "get", keybinding_schema, "binding"], capture_output=True, text=True).stdout.strip().strip("'")
+    problems = []
+    if path not in paths:
+        problems.append(f"custom-keybindings list doesn't include {path!r}")
+    if got_command != command:
+        problems.append(f"command read back as {got_command!r}, expected {command!r}")
+    if got_binding != binding:
+        problems.append(f"binding read back as {got_binding!r}, expected {binding!r}")
+    if problems:
+        print("Warning: GNOME keybinding may not have registered correctly:")
+        for problem in problems:
+            print(f"  - {problem}")
+    else:
+        print(f"Confirmed: GNOME keybinding {got_name!r} registered — {got_binding} runs {got_command}.")
+
+
+_GNOME_EXTENSION_UUID = "florinda-status@florinda-ai"
+_GNOME_EXTENSION_SRC_DIR = REPO_ROOT / "gnome-extension" / _GNOME_EXTENSION_UUID
+
+
+def _gnome_extension_enabled(uuid: str) -> bool:
+    result = subprocess.run(["gnome-extensions", "list", "--enabled"], capture_output=True, text=True)
+    return uuid in result.stdout.split()
+
+
+def _install_gnome_status_extension(prompter: Prompter) -> None:
+    """The GNOME equivalent of the project's Waybar custom/flora module —
+    GNOME has no Waybar, so a top-bar state indicator has to come from a
+    GNOME Shell extension instead. See gnome-extension/florinda-status@
+    florinda-ai/extension.js for the actual indicator/menu code."""
+    if not prompter.confirm(
+        "install_gnome_extension",
+        "Install the Florinda Status GNOME Shell extension (top-bar state "
+        "indicator + a menu to stop/start Florinda and view the activity log)?",
+    ):
+        return
+    if not _GNOME_EXTENSION_SRC_DIR.exists():
+        print(f"{_GNOME_EXTENSION_SRC_DIR} not found in this checkout — skipping.")
+        return
+    dest_dir = Path.home() / ".local/share/gnome-shell/extensions" / _GNOME_EXTENSION_UUID
+    dest_dir.parent.mkdir(parents=True, exist_ok=True)
+    if dest_dir.exists():
+        shutil.rmtree(dest_dir)
+    shutil.copytree(_GNOME_EXTENSION_SRC_DIR, dest_dir)
+    print(f"Copied extension to {dest_dir}.")
+    if not shutil.which("gnome-extensions"):
+        print(
+            "`gnome-extensions` CLI not found — log out and back in, then enable "
+            f"\"Florinda Status\" via the Extensions app (or run `gnome-extensions "
+            f"enable {_GNOME_EXTENSION_UUID}` if that command becomes available)."
+        )
+        return
+    result = subprocess.run(["gnome-extensions", "enable", _GNOME_EXTENSION_UUID], capture_output=True, text=True)
+    if result.returncode != 0:
+        print(
+            f"`gnome-extensions enable` reported: {result.stderr.strip()} — you may "
+            f"need to log out and back in first, then run `gnome-extensions enable "
+            f"{_GNOME_EXTENSION_UUID}` yourself."
+        )
+        return
+    # WHY read back `gnome-extensions list --enabled` instead of trusting
+    # `enable`'s exit code alone: a brand-new extension GNOME Shell hasn't
+    # picked up yet (common right after copying its files in, especially on
+    # Wayland) can return success from `enable` while not actually showing
+    # up until a session restart — the same "confirm what actually
+    # happened, don't assume" approach as the Hyprland/GNOME keybind checks.
+    if _gnome_extension_enabled(_GNOME_EXTENSION_UUID):
+        print("Confirmed: Florinda Status is enabled — it should be visible in the top bar now.")
+    else:
+        print(
+            "Enabled, but couldn't confirm it's active yet (gnome-extensions list "
+            "--enabled doesn't show it) — this can happen right after installing a "
+            "brand-new extension. Log out and back in if it doesn't appear."
+        )
 
 
 def setup_keybind(desktop: str, prompter: Prompter) -> None:
@@ -662,6 +852,7 @@ def setup_keybind(desktop: str, prompter: Prompter) -> None:
         _setup_sway_keybind(prompter)
     elif "gnome" in desktop_lower:
         _setup_gnome_keybind(prompter)
+        _install_gnome_status_extension(prompter)
     else:
         # WHY KDE isn't auto-configured: KDE's custom-command shortcuts live
         # in khotkeysrc, whose format has changed across KDE4/Plasma5/

@@ -1,0 +1,7 @@
+{
+  "uuid": "florinda-status@florinda-ai",
+  "name": "Florinda Status",
+  "description": "Shows Florinda's current state (idle/listening/thinking/talking/watching/offline) in the top bar, with a menu to stop or start the always-on service and view the activity log. The GNOME equivalent of the project's Waybar custom/flora module, for desktops without Waybar.",
+  "url": "https://github.com/CosmicLM/florinda-ai",
+  "shell-version": ["45", "46", "47", "48", "49"]
+}
