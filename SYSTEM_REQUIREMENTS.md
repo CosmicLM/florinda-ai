@@ -18,9 +18,15 @@ with a real, readable error naming exactly what's missing (this project's own
 | ALSA utilities: `aplay`, `arecord` | `alsa-utils` | audio playback + mic recording (`voice.py`, `mic_recorder.py`) |
 | **tesseract-ocr** | `tesseract`, `tesseract-data-eng` (or your language) | screen-watching OCR, via the `pytesseract` Python binding — the binding alone does nothing without this |
 | **gtk-launch** | `gtk3` (or `libgtk-3-bin` on Debian/Ubuntu) | resolving an installed app's `.desktop` entry (`app_launcher.py`) |
-| Docker + Docker Compose | `docker`, `docker-compose` | the self-hosted SearXNG container backing Web Search / Academic Paper Search |
+| Docker + Docker Compose | `docker`, `docker-compose` (Debian/Ubuntu: `docker-ce`/`docker-compose-plugin` from Docker's own apt repo — see note below) | the self-hosted SearXNG container backing Web Search / Academic Paper Search |
 | systemd (user session) | (present on virtually any modern distro) | `flora-daemon.service`, the always-on background service |
 | **One configured AI provider** | — | see "AI provider" below — at least one is required |
+
+**Ubuntu/Debian note**: `docker-compose-plugin` isn't in the default apt
+repos (`E: Unable to locate package docker-compose-plugin`) — it's only
+published in Docker's own apt repo, not your distro's. `./install.sh` /
+`install.py` adds that repo automatically (confirming first); see `SETUP.md`
+step 1 for the manual commands if you're not using the installer.
 
 ## AI provider — pick exactly one as primary (`FLORA_AI_PROVIDER`)
 

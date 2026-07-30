@@ -64,8 +64,9 @@ _SYSTEM_PACKAGES = {
     ],
     "apt": [
         "kitty", "alsa-utils", "tesseract-ocr", "tesseract-ocr-eng",
-        "libgtk-3-bin", "docker.io", "docker-compose-plugin", "texlive",
-        "texlive-latex-extra", "lm-sensors", "grim",
+        "libgtk-3-bin", "docker-ce", "docker-ce-cli", "containerd.io",
+        "docker-compose-plugin", "texlive", "texlive-latex-extra",
+        "lm-sensors", "grim",
     ],
     "dnf": [
         "kitty", "alsa-utils", "tesseract", "tesseract-langpack-eng", "gtk3",
@@ -156,6 +157,62 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=True, **kwargs)
 
 
+def _add_docker_apt_repo(prompter: Prompter) -> None:
+    """WHY this exists: verified live-reported behavior — Debian/Ubuntu's own
+    default repos don't carry `docker-compose-plugin` (apt fails with
+    "Unable to locate package"), because that package only ships from
+    Docker's own apt repo, not the distro's. `docker.io` (the distro's own
+    Docker build) and `docker-ce` (Docker's own build) can't be installed
+    side by side, so once we need the plugin from Docker's repo we get
+    Docker's own engine packages from there too, instead of mixing sources."""
+    keyrings_dir = Path("/etc/apt/keyrings")
+    keyring_path = keyrings_dir / "docker.asc"
+    if keyring_path.exists():
+        return
+    if not prompter.confirm(
+        "add_docker_apt_repo",
+        "docker-compose-plugin isn't in the default apt repos — add Docker's "
+        "official apt repo now (needed for Docker + the SearXNG search container)?",
+    ):
+        print("Skipped — docker-ce/docker-compose-plugin install will likely fail below.")
+        return
+    os_release = {}
+    try:
+        for line in Path("/etc/os-release").read_text().splitlines():
+            if "=" in line:
+                key, _, value = line.partition("=")
+                os_release[key] = value.strip('"')
+    except OSError:
+        pass
+    distro_id = os_release.get("ID", "ubuntu")  # "ubuntu" or "debian"
+    codename = os_release.get("VERSION_CODENAME", "")
+    if not codename:
+        raise InstallError(
+            "Couldn't determine your Debian/Ubuntu release codename from "
+            "/etc/os-release — add Docker's apt repo manually: "
+            "https://docs.docker.com/engine/install/"
+        )
+    _run(["sudo", "apt-get", "update"])
+    _run(["sudo", "apt-get", "install", "-y", "ca-certificates", "curl"])
+    _run(["sudo", "install", "-m", "0755", "-d", str(keyrings_dir)])
+    _run([
+        "sudo", "curl", "-fsSL",
+        f"https://download.docker.com/linux/{distro_id}/gpg",
+        "-o", str(keyring_path),
+    ])
+    _run(["sudo", "chmod", "a+r", str(keyring_path)])
+    arch = subprocess.run(
+        ["dpkg", "--print-architecture"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    repo_line = (
+        f"deb [arch={arch} signed-by={keyring_path}] "
+        f"https://download.docker.com/linux/{distro_id} {codename} stable\n"
+    )
+    Path("/tmp/docker.list").write_text(repo_line)
+    _run(["sudo", "cp", "/tmp/docker.list", "/etc/apt/sources.list.d/docker.list"])
+    _run(["sudo", "apt-get", "update"])
+
+
 def install_system_packages(pm: str, prompter: Prompter) -> None:
     packages = _SYSTEM_PACKAGES[pm]
     print(f"\nDetected package manager: {pm}")
@@ -164,6 +221,8 @@ def install_system_packages(pm: str, prompter: Prompter) -> None:
     if not prompter.confirm("install_system_packages", "Install these now with sudo?"):
         print("Skipped — make sure these are installed manually before continuing.")
         return
+    if pm == "apt":
+        _add_docker_apt_repo(prompter)
     _run(_INSTALL_CMD[pm] + packages)
 
 

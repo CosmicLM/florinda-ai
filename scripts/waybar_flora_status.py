@@ -13,8 +13,9 @@ from pathlib import Path
 STATUS_PATH = Path.home() / ".local/share/flora-ai/status.json"
 STALE_AFTER_S = 60
 
-_SOLID_DOT = "●"
-_HOLLOW_DOT = "○"
+_STAR_SPAN = "<span size='x-large'>{}</span>"
+_SOLID_STAR = _STAR_SPAN.format("✶")
+_HOLLOW_STAR = _STAR_SPAN.format("✹")
 
 _STATE_LABELS = {
     # (word, tooltip) — WHY a dot instead of an emoji: the dot inherits its
@@ -37,7 +38,7 @@ _OFFLINE_LABEL = ("Offline", "Florinda: offline")
 
 def main() -> None:
     if not STATUS_PATH.exists():
-        _emit(f"{_SOLID_DOT} {_OFFLINE_LABEL[0]}", _OFFLINE_LABEL[1], "offline")
+        _emit(f"{_SOLID_STAR} {_OFFLINE_LABEL[0]}", _OFFLINE_LABEL[1], "offline")
         return
     try:
         with open(STATUS_PATH) as status_file:
@@ -46,7 +47,7 @@ def main() -> None:
         updated_at = data.get("updated_at", 0)
         phase = data.get("phase", 0)
     except (OSError, json.JSONDecodeError):
-        _emit(f"{_SOLID_DOT} {_OFFLINE_LABEL[0]}", _OFFLINE_LABEL[1], "offline")
+        _emit(f"{_SOLID_STAR} {_OFFLINE_LABEL[0]}", _OFFLINE_LABEL[1], "offline")
         return
 
     # WHY self-heal to idle on stale non-idle state: a crash mid-"thinking"/
@@ -54,7 +55,7 @@ def main() -> None:
     if state != "idle" and (time.time() - updated_at) > STALE_AFTER_S:
         state = "idle"
 
-    dot = _HOLLOW_DOT if (state == "talking" and phase == 1) else _SOLID_DOT
+    dot = _HOLLOW_STAR if (state == "talking" and phase == 1) else _SOLID_STAR
     label, tooltip = _STATE_LABELS.get(state, _STATE_LABELS["idle"])
     _emit(f"{dot} {label}", tooltip, state)
 
