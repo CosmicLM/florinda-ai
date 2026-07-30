@@ -4,6 +4,14 @@ A step-by-step walkthrough to get Florinda running from scratch. See
 `SYSTEM_REQUIREMENTS.md` first for the full list of what's being installed
 here and why — this guide is the "how," that one's the "what."
 
+**Fastest path**: `./install.sh` does everything below interactively —
+detects your distro (Arch/Debian/Fedora) and desktop, installs system
+packages (confirming before any `sudo` step), sets up the venv, prompts for
+an AI provider and voice model, writes `.env`, brings up the SearXNG
+container, and installs the systemd service. What follows is what it's
+actually doing, for anyone who wants to run the steps by hand, understand
+them, or debug a step that didn't go as expected.
+
 Commands below use `pacman` (Arch/Manjaro). Swap in your distro's package
 manager (`apt`, `dnf`, ...) and package names as needed — most of these are
 correctly named the same or very similarly on Debian/Ubuntu/Fedora.
@@ -131,10 +139,33 @@ otherwise leaves the daemon with no display to render popups/dialogs on).
 Other compositors/DEs generally handle this ordering via
 `graphical-session.target` already; adjust if you hit the same race.
 
-## 6. Wire up the push-to-talk keybind (Hyprland)
+## 6. Wire up the push-to-talk keybind
 
-Add to your Hyprland config (e.g. `~/.config/hypr/conf/custom.lua` or
-equivalent):
+`install.py` does this automatically for **Hyprland** (classic `.conf`
+config only — see below), **Sway**, and **GNOME**, detecting your desktop
+and confirming before it edits anything. What follows is what it's actually
+doing, for KDE (not auto-configured — see the note at the end) or if you'd
+rather do it by hand.
+
+**Hyprland (classic `.conf` config)** — a real keybind, held down to talk
+(`bind`/`bindr` fire on press/release respectively):
+
+```
+bind = SUPER SHIFT, SPACE, exec, python3 -S PROJECT_DIR/scripts/flora_ptt_hook.py PRESS
+bindr = SUPER SHIFT, SPACE, exec, python3 -S PROJECT_DIR/scripts/flora_ptt_hook.py RELEASE
+```
+
+Put this in its own file (e.g. `~/.config/hypr/florinda-ptt.conf`) and add
+`source = ~/.config/hypr/florinda-ptt.conf` to your main `hyprland.conf`,
+then `hyprctl reload`.
+
+**Hyprland (Lua-based config, e.g. ML4W dotfiles)** — this project's own
+machine actually uses this style (`hyprland.lua` as the real entry point,
+not the classic `.conf`), which is why the installer won't auto-edit it —
+too much variation between Lua-based setups to safely assume a structure.
+This binds bare `Super` alone (no second key needed), using a raw keyboard
+hook since Hyprland's own bind system can't target a modifier key by
+itself:
 
 ```lua
 local FLORA_PTT_HOOK = "python3 -S PROJECT_DIR/scripts/flora_ptt_hook.py"
@@ -148,9 +179,42 @@ end)
 ```
 
 Replace `PROJECT_DIR` with your actual clone path, and adjust the keycode if
-you want a different push-to-talk key (find yours by logging raw keyboard
-events the same way, or via `wev`/`libinput debug-events`). Reload with
-`hyprctl reload`.
+you want a different key (find yours via `wev`/`libinput debug-events`).
+Reload with `hyprctl reload`.
+
+**Sway** — same idea via `bindsym`/`bindsym --release`, using Sway's own
+`$mod` variable so it matches whatever modifier your config already
+defines:
+
+```
+bindsym $mod+shift+space exec python3 -S PROJECT_DIR/scripts/flora_ptt_hook.py PRESS
+bindsym --release $mod+shift+space exec python3 -S PROJECT_DIR/scripts/flora_ptt_hook.py RELEASE
+```
+
+Put this in its own file and `include` it from `~/.config/sway/config`,
+then `swaymsg reload`.
+
+**GNOME** — GNOME's custom-keybinding system only fires a command on key
+*press*, with no separate release action, so true hold-to-talk isn't
+possible through it at all. Use `scripts/flora_ptt_toggle_hook.py` instead
+(press once to start recording, press again to stop) as a Custom Shortcut
+bound via `gsettings`:
+
+```bash
+gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings \
+  "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/florinda-ptt/']"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/florinda-ptt/ \
+  name 'Florinda push-to-talk'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/florinda-ptt/ \
+  command 'python3 -S PROJECT_DIR/scripts/flora_ptt_toggle_hook.py'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/florinda-ptt/ \
+  binding '<Super><Shift>space'
+```
+
+**KDE** — not auto-configured (KDE's custom-command shortcut format has
+changed across KDE4/Plasma5/Plasma6 in ways this installer can't verify).
+Same toggle script as GNOME, wired up via System Settings > Shortcuts >
+Custom Shortcuts, bound to `python3 -S PROJECT_DIR/scripts/flora_ptt_toggle_hook.py`.
 
 Window/workspace *control* (`hyprland_bridge.py` — "switch to workspace 2",
 "close this window", etc.) is Hyprland-specific for now; nothing else in

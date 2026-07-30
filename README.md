@@ -19,18 +19,20 @@ Florinda is a voice-activated, AI-powered research assistant designed specifical
 
 ## Installation
 
-See **[SETUP.md](SETUP.md)** for the full step-by-step guide, and
-**[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for exactly what needs
-to be installed on your OS and why. Short version:
-
 ```bash
 git clone https://github.com/yourusername/florinda-ai.git
 cd florinda-ai
-python3 -m venv venv
-venv/bin/python3 -m pip install -r requirements.txt
-# then: create .env, install the systemd service, wire up your keybind —
-# see SETUP.md for the exact commands.
+./install.sh
 ```
+
+An interactive installer — detects your distro (Arch/Debian/Fedora) and
+desktop, installs system dependencies (confirming before anything that
+needs `sudo`), sets up the venv, walks you through picking an AI provider
+and voice model, writes `.env`, brings up the search container, and
+installs the systemd service. See **[SETUP.md](SETUP.md)** for what it does
+step by step (or to do it by hand instead), and
+**[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for exactly what gets
+installed and why.
 
 ## Quick Start
 

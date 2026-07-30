@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-SOCKET_PATH = "/home/manjaro/.local/share/flora-ai/ptt.sock"
+SOCKET_PATH = str(Path.home() / ".local/share/flora-ai/ptt.sock")
 HOOK_LOG_PATH = Path.home() / ".local/share/flora-ai/ptt-hook.log"
 
 
