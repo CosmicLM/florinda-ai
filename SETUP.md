@@ -20,7 +20,8 @@ correctly named the same or very similarly on Debian/Ubuntu/Fedora.
 
 ```bash
 sudo pacman -S python kitty alsa-utils tesseract tesseract-data-eng gtk3 \
-    docker docker-compose texlive-core texlive-latexextra lm_sensors grim
+    docker docker-compose texlive-core texlive-latexextra lm_sensors grim \
+    base-devel gobject-introspection
 
 # piper-tts isn't in the official repos — install from the AUR:
 yay -S piper-tts
@@ -29,6 +30,16 @@ yay -S piper-tts
 # Enable Docker (needed for the self-hosted SearXNG search container):
 sudo systemctl enable --now docker
 ```
+
+`base-devel`/`gobject-introspection` (Debian/Ubuntu: `build-essential`,
+`pkg-config`, `python3-dev`, `libdbus-1-dev`, `libglib2.0-dev`,
+`libgirepository1.0-dev`; Fedora: `gcc`, `pkgconf-pkg-config`,
+`python3-devel`, `dbus-devel`, `glib2-devel`, `gobject-introspection-devel`)
+are needed even if you're on Hyprland/Sway and never touch the ScreenCast
+fallback — `pip install -r requirements.txt` builds `dbus-python` and
+`PyGObject` from source on every install (neither ships a prebuilt wheel),
+and without a C compiler + these dev headers that step fails with a Meson
+"Unknown compiler(s)" or missing-header error.
 
 **Ubuntu/Debian note**: `docker-compose-plugin` isn't in the default apt
 repos (`E: Unable to locate package docker-compose-plugin`) — it only ships

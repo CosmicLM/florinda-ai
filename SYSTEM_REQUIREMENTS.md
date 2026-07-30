@@ -20,6 +20,7 @@ with a real, readable error naming exactly what's missing (this project's own
 | **gtk-launch** | `gtk3` (or `libgtk-3-bin` on Debian/Ubuntu) | resolving an installed app's `.desktop` entry (`app_launcher.py`) |
 | Docker + Docker Compose | `docker`, `docker-compose` (Debian/Ubuntu: `docker-ce`/`docker-compose-plugin` from Docker's own apt repo — see note below) | the self-hosted SearXNG container backing Web Search / Academic Paper Search |
 | systemd (user session) | (present on virtually any modern distro) | `flora-daemon.service`, the always-on background service |
+| A C compiler + D-Bus/GObject-introspection dev headers | `base-devel`, `gobject-introspection` (Debian/Ubuntu: `build-essential`, `pkg-config`, `python3-dev`, `libdbus-1-dev`, `libglib2.0-dev`, `libgirepository1.0-dev`; Fedora: `gcc`, `pkgconf-pkg-config`, `python3-devel`, `dbus-devel`, `glib2-devel`, `gobject-introspection-devel`) | building `dbus-python`/`PyGObject` from source during `pip install -r requirements.txt` — neither has a prebuilt wheel, so this is needed on **every** install, not just desktops that end up using the `screencast_portal.py` fallback |
 | **One configured AI provider** | — | see "AI provider" below — at least one is required |
 
 **Ubuntu/Debian note**: `python3 -m venv` fails with "ensurepip is not

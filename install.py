@@ -61,17 +61,28 @@ _SYSTEM_PACKAGES = {
         "kitty", "alsa-utils", "tesseract", "tesseract-data-eng", "gtk3",
         "docker", "docker-compose", "texlive-core", "texlive-latexextra",
         "lm_sensors", "grim",
+        # Build deps for dbus-python/PyGObject (pip has no prebuilt wheel for
+        # either — both compile from source on every install). base-devel
+        # brings gcc/pkgconf; dbus's Arch package already ships its own dev
+        # headers (unlike Debian/Fedora, which split them out separately).
+        "base-devel", "gobject-introspection",
     ],
     "apt": [
         "kitty", "alsa-utils", "tesseract-ocr", "tesseract-ocr-eng",
         "libgtk-3-bin", "docker-ce", "docker-ce-cli", "containerd.io",
         "docker-compose-plugin", "texlive", "texlive-latex-extra",
         "lm-sensors", "grim", "python3-venv",
+        # Same build-from-source deps as above, Debian/Ubuntu package names.
+        "build-essential", "pkg-config", "python3-dev", "libdbus-1-dev",
+        "libglib2.0-dev", "libgirepository1.0-dev",
     ],
     "dnf": [
         "kitty", "alsa-utils", "tesseract", "tesseract-langpack-eng", "gtk3",
         "docker", "docker-compose-plugin", "texlive-scheme-medium",
         "lm_sensors", "grim",
+        # Same build-from-source deps as above, Fedora package names.
+        "gcc", "pkgconf-pkg-config", "python3-devel", "dbus-devel",
+        "glib2-devel", "gobject-introspection-devel",
     ],
 }
 
