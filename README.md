@@ -61,9 +61,19 @@ To Change The Prompts Of The AI You Can:
 
 ## Requirements
 
-- Linux with Hyprland
+- Linux, Wayland or X11
 - Python 3.8+
 - Internet connection
+- Screen-watching (passive OCR context-awareness) uses `grim` if present
+  (any wlroots compositor: Hyprland, Sway, river — zero extra setup), or
+  falls back automatically to the `org.freedesktop.portal.ScreenCast`
+  D-Bus portal on other desktops (GNOME, KDE, X11 session managers), which
+  needs `gstreamer`, `gst-plugin-pipewire`, and a running
+  `xdg-desktop-portal` backend for your desktop — standard on any of these
+  out of the box, nothing Hyprland-specific required.
+- Window/workspace control (`hyprland_bridge.py`) still requires Hyprland
+  specifically for now — a portability pass for that piece hasn't happened
+  yet.
 
 ## License
 
