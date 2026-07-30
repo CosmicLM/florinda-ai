@@ -19,10 +19,17 @@ Florinda is a voice-activated, AI-powered research assistant designed specifical
 
 ## Installation
 
+See **[SETUP.md](SETUP.md)** for the full step-by-step guide, and
+**[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for exactly what needs
+to be installed on your OS and why. Short version:
+
 ```bash
 git clone https://github.com/yourusername/florinda-ai.git
 cd florinda-ai
-./install.sh
+python3 -m venv venv
+venv/bin/python3 -m pip install -r requirements.txt
+# then: create .env, install the systemd service, wire up your keybind —
+# see SETUP.md for the exact commands.
 ```
 
 ## Quick Start
@@ -34,11 +41,13 @@ cd florinda-ai
 
 ## Configuration
 
-Edit `~/.config/flora-ai/config.toml` to customize:
-- API keys
-- Voice settings
-- Keybindings
-- Response behavior
+Edit `.env` in the project root to customize:
+- AI provider + API keys (see SETUP.md — Gemini, OpenAI-compatible, or Anthropic)
+- Voice model
+- Dozens of other settings (screen-watch interval, watcher cooldowns, timeouts, ...) — see `config.py` for the full list, all with working defaults
+
+Keybindings (push-to-talk, etc.) are configured in your window manager's own
+config, not here — see SETUP.md's Hyprland example.
 
 <details>
 <summary>Prompts, Behavior And How To Change</summary>
