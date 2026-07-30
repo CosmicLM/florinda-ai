@@ -19,27 +19,27 @@ from typing import Optional
 from colorama import init
 from google import genai
 
-from activity_log import ActivityLog
-from check_in_watcher import CheckInWatcher
+from infra.activity_log import ActivityLog
+from watchers.check_in_watcher import CheckInWatcher
 from config import ConfigurationError, ConfigVault
-from conversation_memory import ConversationMemory
+from infra.conversation_memory import ConversationMemory
 from executor import SystemTerminal
 from flora_daemon import FloraDaemon
-from local_brain import LocalBrain
-from mic_recorder import MicRecorder
-from morning_briefing import MorningBriefing
+from backends.local_brain import LocalBrain
+from voice.mic_recorder import MicRecorder
+from watchers.morning_briefing import MorningBriefing
 from processor import PromptProcessor
-from ptt_ipc import PushToTalkServer
-from quantum_watcher import QuantumWatcher
-from screen_observer import ScreenObserver
+from voice.ptt_ipc import PushToTalkServer
+from watchers.quantum_watcher import QuantumWatcher
+from watchers.screen_observer import ScreenObserver
 from state_manifest import StateManifest
-from status_broadcaster import STATE_IDLE, STATE_WATCHING, StatusBroadcaster
-from sys_info_cache import SysInfoCache
-from system_health_watcher import SystemHealthWatcher
-from task_watcher import TaskWatcher
-from voice import AudioEngine
-from voice_input import TranscriptionEngine
-from watch_toggle import is_paused as watch_is_paused
+from infra.status_broadcaster import STATE_IDLE, STATE_WATCHING, StatusBroadcaster
+from infra.sys_info_cache import SysInfoCache
+from watchers.system_health_watcher import SystemHealthWatcher
+from watchers.task_watcher import TaskWatcher
+from voice.voice import AudioEngine
+from voice.voice_input import TranscriptionEngine
+from watchers.watch_toggle import is_paused as watch_is_paused
 
 logger = logging.getLogger(__name__)
 

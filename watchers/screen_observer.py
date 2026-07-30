@@ -83,7 +83,7 @@ class ScreenObserver:
         # WHY imported here, not at module scope: dbus/gi are only needed on
         # the fallback path (GNOME/KDE/X11) — machines with grim shouldn't
         # need those extra dependencies importable just to run this module.
-        import screencast_portal
+        from tools import screencast_portal
 
         if self._portal_capture is None:
             self._portal_capture = screencast_portal.PortalScreenCapture()
