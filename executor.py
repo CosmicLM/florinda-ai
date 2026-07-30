@@ -29,6 +29,7 @@ from config import NULL_COMMAND
 # symlink actually LIVES in and where all its installed console-script
 # wrappers — pip, pyflakes, etc. — actually sit). Only Path(), no resolve.
 _VENV_BIN_DIR = str(Path(sys.executable).parent)
+_REPO_ROOT = str(Path(__file__).resolve().parent)
 
 
 class SystemTerminal:
@@ -45,6 +46,23 @@ class SystemTerminal:
         self._reject_blank_or_null(shell_command)
         env = os.environ.copy()
         env["PATH"] = f"{_VENV_BIN_DIR}{os.pathsep}{env.get('PATH', '')}"
+        # WHY also export PROJECT_DIR as a REAL shell env var, on top of
+        # processor.py's own $PROJECT_DIR substitution already replacing it
+        # with the real path before the model ever sees INSTRUCTION.md:
+        # reported live — a command executed with the literal, unexpanded
+        # text "$PROJECT_DIR" in it (root cause unconfirmed: possibly the
+        # model reproducing shell-variable-style syntax from general
+        # training rather than the substituted literal path it was shown;
+        # Template substitution itself was independently verified correct
+        # moments earlier in the same session). Whatever the cause, without
+        # this a literal "$PROJECT_DIR" in a shell=True command silently
+        # expands to an EMPTY string (no such env var exists), producing a
+        # confusing "can't open file '/tools/whatever.py'" instead of a
+        # clear error. Exporting the real value here means that failure
+        # mode self-heals instead of needing a perfect root-cause fix
+        # upstream — belts and suspenders, not a replacement for the
+        # Template fix.
+        env["PROJECT_DIR"] = _REPO_ROOT
         completed = subprocess.run(shell_command, shell=True, capture_output=True, text=True, env=env)
         return completed.stdout if completed.returncode == 0 else completed.stderr
 
