@@ -21,3 +21,10 @@ html2text>=2025.4,<2026
 
 # skill_manager.py (catches undefined-name bugs py_compile can't see)
 pyflakes>=3.4,<4
+
+# screencast_portal.py — WM-agnostic screen capture fallback for desktops
+# without `grim` (GNOME/KDE/X11). Needs system libdbus-1 + GObject
+# introspection dev headers to build (both are standard on any desktop
+# running xdg-desktop-portal at all, since it's a D-Bus/GLib service itself).
+dbus-python>=1.4,<2
+PyGObject>=3.56,<4
