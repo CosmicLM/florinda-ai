@@ -1,10 +1,10 @@
 ---
-description: "Hypr-AI is a Hyprland-integrated voice assistant. Architecture: voice → PromptProcessor (Gemini API) → SystemTerminal (shell) → HyprCore (piper-tts). Handle API keys, command parsing (COMMAND:|SPEECH:), error safety, and subprocess integration carefully."
+description: "Florinda is a Hyprland-integrated voice assistant. Architecture: voice → PromptProcessor (Gemini API) → SystemTerminal (shell) → HyprCore (piper-tts). Handle API keys, command parsing (COMMAND:|SPEECH:), error safety, and subprocess integration carefully."
 ---
 
-# Hypr-AI Workspace Instructions
+# Florinda Workspace Instructions
 
-Hypr-AI is a voice-activated AI research assistant that integrates with Hyprland (Linux window manager). It processes voice/text input through Google Gemini API and executes commands via a safe shell wrapper.
+Florinda is a voice-activated AI research assistant that integrates with Hyprland (Linux window manager). It processes voice/text input through Google Gemini API and executes commands via a safe shell wrapper.
 
 ## Architecture Overview
 
@@ -25,7 +25,7 @@ HyprCore.speak() (piper-tts audio output)
 | File | Purpose | Key Responsibility |
 |------|---------|-------------------|
 | `config.py` | Environment & constants | API keys, model selection, `NULL_COMMAND` constant |
-| `hypr_daemon.py` | Entry point | Orchestrates processor, core, user input flow |
+| `flora_daemon.py` | Entry point | Orchestrates processor, core, user input flow |
 | `processor.py` | PromptProcessor class | Gemini API calls, response parsing, command/speech extraction |
 | `voice.py` | HyprCore class | Text-to-speech via piper-tts, subprocess pipe to aplay |
 | `executor.py` | SystemTerminal class | Safe command execution with null-check and error handling |
@@ -33,7 +33,7 @@ HyprCore.speak() (piper-tts audio output)
 ## Critical Patterns & Conventions
 
 ### 1. Configuration Management
-- **Environment variables** required: `HYPR_API_KEY`, `DEFAULT_VOICE_MODEL`
+- **Environment variables** required: `FLORA_API_KEY`, `DEFAULT_VOICE_MODEL`
 - **Load via** `dotenv` in config.py
 - **Constants** imported from config across all modules to maintain consistency
 - **API Model**: "gemini-3.1-flash-lite" (see processor.py)
@@ -109,4 +109,4 @@ The `SystemTerminal.run_command()` method includes **two safety checkpoints**:
 - **Branch**: clean-code (default: main)
 - **Python minimum**: 3.8+
 - **External dependencies**: google-genai, python-dotenv, system tools (piper-tts, aplay)
-- **Hyprland**: Required for full integration (config.toml at ~/.config/hypr-ai/)
+- **Hyprland**: Required for full integration (config.toml at ~/.config/flora-ai/)

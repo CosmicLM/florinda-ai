@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""hypr_ptt_hook.py — the ONLY thing Hyprland's Super_L bind actually executes.
+"""flora_ptt_hook.py — the ONLY thing Hyprland's Super_L bind actually executes.
 
 WHY stdlib-only, no project imports: this must return near-instantly so it
 never blocks Hyprland's key-event dispatch. All real work (recording,
-transcription, calling the AI) happens in the already-running hypr_service.py
+transcription, calling the AI) happens in the already-running flora_service.py
 process; this script just signals it over a Unix socket and exits.
 """
 import socket
@@ -11,8 +11,8 @@ import sys
 import time
 from pathlib import Path
 
-SOCKET_PATH = "/home/manjaro/.local/share/hypr-ai/ptt.sock"
-HOOK_LOG_PATH = Path.home() / ".local/share/hypr-ai/ptt-hook.log"
+SOCKET_PATH = "/home/manjaro/.local/share/flora-ai/ptt.sock"
+HOOK_LOG_PATH = Path.home() / ".local/share/flora-ai/ptt-hook.log"
 
 
 def _log(line: str) -> None:
