@@ -28,7 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
-import web_search
+from tools import web_search
 
 logger = logging.getLogger(__name__)
 

@@ -13,13 +13,13 @@ from colorama import init
 from google import genai
 from termcolor import colored
 
-from activity_log import ActivityLog
+from infra.activity_log import ActivityLog
 from config import ConfigurationError, ConfigVault, NULL_COMMAND
-from conversation_memory import ConversationMemory
+from infra.conversation_memory import ConversationMemory
 from executor import SystemTerminal
 from processor import ParsedInstruction, PromptProcessor
 from state_manifest import StateManifest
-from voice import AudioEngine
+from voice.voice import AudioEngine
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ _QISKIT_NOTES = """Verified against the REAL installed environment (qiskit 2.4.1
 - For the common case of "run this circuit and get counts", skip primitives entirely — the simplest working pattern is: `from qiskit_aer import AerSimulator` then `AerSimulator().run(circuit, shots=1024).result().get_counts()`.
 - `some_gate_call(...).c_if(...)` FAILS on this install (AttributeError — removed from InstructionSet). For classically-conditioned gates, use the context-manager form instead: `with qc.if_test((creg_or_bit, value)): qc.x(1)` — the conditioned gate(s) go inside the `with` block.
 - Both `Aer.get_backend('qasm_simulator')` and `AerSimulator()` work fine on this install — no need to guess between them.
-- Not sure about something else? Run `python3 /home/manjaro/Projects/flora-ai/qiskit_docs.py search <keyword>` or `... lookup <dotted.path>` first — it reads the real installed package, not a guess."""
+- Not sure about something else? Run `python3 /home/manjaro/Projects/flora-ai/tools/qiskit_docs.py search <keyword>` or `... lookup <dotted.path>` first — it reads the real installed package, not a guess."""
 
 
 def _is_auto_safe_command(command: str) -> bool:

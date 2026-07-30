@@ -36,7 +36,7 @@ if __name__ == "__main__":
     import sys
     import time
 
-    from mic_recorder import MicRecorder
+    from voice.mic_recorder import MicRecorder
 
     print("Loading model (small.en, cpu)...")
     start = time.monotonic()
