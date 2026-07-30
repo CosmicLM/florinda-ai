@@ -90,6 +90,17 @@ To Change The Prompts Of The AI You Can:
   specifically for now — a portability pass for that piece hasn't happened
   yet.
 
+  ## Known Issues
+
+  - We are currently working on implementing Florinda on Ubuntu/ Debian work spaces, specifically for GNOME.
+  #### What Works (and what doesn't):
+  - [x] Qiskit Visualization and Quantum Circuit Generation
+  - [x] Text-to-speech
+  - [x] Notification Status bar
+  - [x] Searching the Web
+  - [x] Skill Creation
+  - [ ] Screen Watching (Soon)      
+
 ## License
 
 MIT
