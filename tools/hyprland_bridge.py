@@ -21,6 +21,7 @@ throughout this machine's own working Hyprland config (`custom.lua`/
 one individually tested destructively.
 """
 import json
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -41,6 +42,22 @@ class ActiveWindow:
 
 class HyprlandBridge:
     """Typed access to Hyprland's live compositor state, plus verified control actions."""
+
+    def __init__(self) -> None:
+        # WHY checked here, once, instead of letting subprocess.run raise:
+        # reported live — on a non-Hyprland desktop (GNOME, in this case),
+        # `hyprctl` simply doesn't exist, and subprocess.run(["hyprctl", ...])
+        # with no shell raises a raw, uncaught FileNotFoundError — NOT a
+        # HyprctlError, so _main()'s `except HyprctlError` never catches it
+        # and the AI got a full Python traceback instead of a clear answer.
+        # This feature is genuinely Hyprland-only for now (see
+        # INSTRUCTION.md's Hyprland Control section) — the right behavior
+        # on another desktop is a clean "not available" error, not a crash.
+        if not shutil.which("hyprctl"):
+            raise HyprctlError(
+                "hyprctl not found — window/workspace control only works on Hyprland. "
+                "Not available on this desktop."
+            )
 
     # --- read-only queries ---
 
@@ -114,8 +131,8 @@ def _main() -> None:
     focus_parser.add_argument("direction", choices=_VALID_DIRECTIONS)
 
     args = parser.parse_args()
-    bridge = HyprlandBridge()
     try:
+        bridge = HyprlandBridge()
         _dispatch_cli_action(bridge, args)
     except HyprctlError as error:
         print(f"Error: {error}", file=sys.stderr)
