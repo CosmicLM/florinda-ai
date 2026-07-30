@@ -1,0 +1,64 @@
+# docker-compose.yml — infrastructure flora-ai owns and manages itself.
+#
+# WHY this exists: web_search.py originally pointed at a SearXNG container
+# belonging to a separate project (Odysseus). That meant flora-ai's web search
+# would silently break if that other project were ever torn down or its
+# compose file changed — a real, unowned dependency. This migrates SearXNG
+# in as flora-ai's own service instead: same proven config (copied from
+# Odysseus's working setup, credit where due), but a distinct container,
+# port, and data volume so the two can coexist or either be removed
+# independently without affecting the other.
+services:
+  searxng:
+    container_name: flora-ai-searxng
+    # Pinned, not :latest — the healthcheck below gates whether this
+    # container is considered usable, and a broken upstream `latest` tag
+    # would just fail it silently. 2026.6.2 crashes on boot with
+    # `KeyError: 'default_doi_resolver'` (issue #1414). Bump deliberately
+    # after verifying a newer tag boots clean.
+    image: docker.io/searxng/searxng:2026.5.31-7159b8aed
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /etc/searxng/settings.yml ] || grep -q 'flora-ai-searxng-json\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+          secret="$${SEARXNG_SECRET:-}"
+          if [ -z "$$secret" ]; then
+            secret="$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          fi
+          sed "s|__SEARXNG_SECRET__|$$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+        fi
+        exec /usr/local/searxng/entrypoint.sh
+    ports:
+      - "127.0.0.1:8092:8080"
+    volumes:
+      - flora-ai-searxng-data:/etc/searxng
+      - ./docker/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro,z
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8092/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
+    # The official searxng image runs as the non-root `searxng` user, but its
+    # entrypoint still needs to chown /etc/searxng on first boot, drop privs
+    # via su-exec, and (with our wrapper above) write settings.yml into the
+    # named volume. Without these capabilities the wrapper aborts at the
+    # redirection with EACCES and the container fails its healthcheck.
+    # Mirrors the cap set recommended by the upstream searxng-docker compose
+    # file (see issue #721).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  flora-ai-searxng-data:
