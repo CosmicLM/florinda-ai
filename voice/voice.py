@@ -2,9 +2,21 @@
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 from typing import Optional
+
+# WHY prepended to this subprocess's PATH specifically: verified live via
+# the installer's own test run — `pip install piper-tts` (the cross-distro
+# path install.py uses, since there's no official Debian/Fedora package)
+# installs a console script into venv/bin, but venv/bin is NOT on the
+# daemon's inherited PATH (same root cause as the executor.py fix earlier
+# this project — subprocess.Popen(shell=True) with no env override inherits
+# the daemon's plain PATH, not an activated-shell one). Without this, a
+# fresh pip-based install would silently produce no audio at all.
+_VENV_BIN_DIR = str(Path(sys.executable).parent)
 
 # WHY these exist: stream_vocal_synthesis is deliberately fire-and-forget
 # (writes text to piper's stdin and returns immediately, so text generation
@@ -121,10 +133,13 @@ class AudioEngine:
         piper_cmd = f"piper-tts --model {self._voice_model} --output_raw"
         aplay_cmd = "aplay -r 22050 -f S16_LE -t raw"
         stderr = None if self._debug else subprocess.DEVNULL
+        env = os.environ.copy()
+        env["PATH"] = f"{_VENV_BIN_DIR}{os.pathsep}{env.get('PATH', '')}"
         return subprocess.Popen(
             f"{piper_cmd} | {aplay_cmd}",
             shell=True,
             stdin=subprocess.PIPE,
             stderr=stderr,
             start_new_session=True,  # own process group, so interrupt() can killpg reliably
+            env=env,
         )
