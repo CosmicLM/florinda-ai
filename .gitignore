@@ -50,3 +50,6 @@ Thumbs.db
 
 *.onnx
 voice/en_GB-cori-high.onnx.json
+
+# Autonomously self-authored skills (runtime-generated, not source code)
+/skills/
