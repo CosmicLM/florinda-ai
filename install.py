@@ -78,9 +78,11 @@ _SYSTEM_PACKAGES = {
         # WHY libgirepository-2.0-dev, not the older libgirepository1.0-dev:
         # verified live — PyGObject>=3.56 requires girepository-2.0 at build
         # time unconditionally (no fallback to the 1.0 API), and Debian/
-        # Ubuntu split that into its own package starting with
-        # gobject-introspection 1.80 (Ubuntu 24.10+/Debian 13+). Older
-        # releases without this package can't build PyGObject>=3.56 at all.
+        # Ubuntu only started shipping this package with gobject-introspection
+        # 1.80 — confirmed present on Ubuntu 24.04 LTS ("noble") onward and
+        # Debian 13 ("trixie") onward, confirmed ABSENT on Ubuntu 22.04 and
+        # Debian 12 ("bookworm") — those older releases can't build
+        # PyGObject>=3.56 from source at all.
         "build-essential", "pkg-config", "python3-dev", "libdbus-1-dev",
         "libglib2.0-dev", "libgirepository-2.0-dev", "libcairo2-dev",
     ],

@@ -36,13 +36,15 @@ published in Docker's own apt repo, not your distro's. `./install.sh` /
 step 1 for the manual commands if you're not using the installer.
 
 **Ubuntu/Debian note**: `libgirepository-2.0-dev` only exists starting with
-gobject-introspection 1.80 (Ubuntu 24.10+, Debian 13+) — `PyGObject>=3.56`
-requires the `girepository-2.0` API unconditionally at build time (no
-fallback to the older `girepository-1.0`), so building it from source is
-not possible on Ubuntu 24.04 LTS/22.04 or older Debian releases as things
-stand. If you're on one of those, you'd need to pin `PyGObject` to an older
-version compatible with `libgirepository1.0-dev` instead — not automated
-by this installer since it hasn't come up yet.
+gobject-introspection 1.80 — confirmed present on **Ubuntu 24.04 LTS
+("noble") onward** and **Debian 13 ("trixie") onward**, confirmed absent on
+Ubuntu 22.04 and Debian 12 ("bookworm"). `PyGObject>=3.56` requires the
+`girepository-2.0` API unconditionally at build time (no fallback to the
+older `girepository-1.0`), so building it from source is not possible on
+Ubuntu 22.04 or Debian 12 or older as things stand. If you're on one of
+those, you'd need to pin `PyGObject` to an older version compatible with
+`libgirepository1.0-dev` instead — not automated by this installer since
+it hasn't come up yet.
 
 ## AI provider — pick exactly one as primary (`FLORA_AI_PROVIDER`)
 
