@@ -24,6 +24,7 @@ module's `if __name__ == "__main__"` block, just adapted for something that
 needs actual interactive input in normal use.
 """
 import argparse
+import getpass
 import json
 import os
 import shutil
@@ -184,8 +185,19 @@ class Prompter:
     def text(self, key: str, prompt: str, default: str = "", secret: bool = False) -> str:
         if key in self._answers:
             return str(self._answers[key])
-        suffix = f" [{default}]" if default else ""
-        reply = input(f"{prompt}{suffix}: ").strip()
+        if secret:
+            # WHY getpass, not input(): verified live — `secret` was
+            # accepted as a parameter here but never actually used, so
+            # every API key typed at this prompt echoed in cleartext to
+            # the terminal (and its scrollback). Also never show the
+            # existing value itself in the "[default]" suffix the way the
+            # non-secret branch below does — "keep existing" communicates
+            # the same thing without ever printing a real secret.
+            suffix = " [keep existing]" if default else ""
+            reply = getpass.getpass(f"{prompt}{suffix}: ").strip()
+        else:
+            suffix = f" [{default}]" if default else ""
+            reply = input(f"{prompt}{suffix}: ").strip()
         return reply or default
 
 
@@ -250,17 +262,39 @@ def _add_docker_apt_repo(prompter: Prompter) -> None:
     _run(["sudo", "apt-get", "update"])
 
 
+_PACKAGE_QUERY_CMD = {
+    "pacman": ["pacman", "-Q"],
+    "apt": ["dpkg", "-s"],
+    "dnf": ["rpm", "-q"],
+}
+
+
+def _is_package_installed(pm: str, package: str) -> bool:
+    result = subprocess.run(_PACKAGE_QUERY_CMD[pm] + [package], capture_output=True)
+    return result.returncode == 0
+
+
 def install_system_packages(pm: str, prompter: Prompter) -> None:
     packages = _SYSTEM_PACKAGES[pm]
     print(f"\nDetected package manager: {pm}")
-    print("System packages needed:", ", ".join(packages))
+    missing = [p for p in packages if not _is_package_installed(pm, p)]
+    if not missing:
+        print("All required system packages are already installed — nothing to do.")
+        return
+    print("Missing system packages:", ", ".join(missing))
     print("(piper-tts is installed separately via pip — see SYSTEM_REQUIREMENTS.md for why)")
-    if not prompter.confirm("install_system_packages", "Install these now with sudo?"):
+    if not prompter.confirm("install_system_packages", f"Install {len(missing)} missing package(s) now with sudo?"):
         print("Skipped — make sure these are installed manually before continuing.")
         return
-    if pm == "apt":
+    # WHY only checked for missing docker-* packages specifically, not just
+    # `pm == "apt"`: on a re-run where Docker is already fully set up, this
+    # would otherwise still prompt to add Docker's apt repo again for no
+    # reason — _add_docker_apt_repo has its own idempotency check too
+    # (skips if the keyring is already there), but there's no reason to
+    # even ask if nothing docker-related is actually missing.
+    if pm == "apt" and any(p.startswith("docker") or p == "containerd.io" for p in missing):
         _add_docker_apt_repo(prompter)
-    _run(_INSTALL_CMD[pm] + packages)
+    _run(_INSTALL_CMD[pm] + missing)
 
 
 def setup_venv(prompter: Prompter) -> None:
@@ -320,36 +354,70 @@ def setup_ollama(pm: str, prompter: Prompter) -> None:
             if prompter.confirm("enable_ollama", "Enable and start the ollama service now?"):
                 _run(["sudo", "systemctl", "enable", "--now", "ollama"])
 
-    if prompter.confirm("pull_ollama_model", f"Pull the default model ({_DEFAULT_OLLAMA_MODEL}, needed by local_brain.py)?"):
+    already_pulled = subprocess.run(
+        ["ollama", "list"], capture_output=True, text=True
+    ).stdout.find(_DEFAULT_OLLAMA_MODEL.split(":")[0]) != -1
+    if already_pulled:
+        print(f"{_DEFAULT_OLLAMA_MODEL} is already pulled.")
+    elif prompter.confirm("pull_ollama_model", f"Pull the default model ({_DEFAULT_OLLAMA_MODEL}, needed by local_brain.py)?"):
         _run(["ollama", "pull", _DEFAULT_OLLAMA_MODEL])
 
 
 _PROVIDER_OPTIONS = ["Gemini", "OpenAI-compatible endpoint", "Anthropic API"]
+_PROVIDER_ENV_VALUES = ["gemini", "openai", "anthropic"]
 
 
-def prompt_ai_provider(prompter: Prompter) -> dict:
+def prompt_ai_provider(prompter: Prompter, existing: Optional[dict] = None) -> dict:
+    """`existing` is the current .env's parsed values (empty on a fresh
+    install) — used so re-running this on an already-configured machine
+    defaults to whatever's already set instead of always Gemini/blank."""
+    existing = existing or {}
     print("\n--- AI provider ---")
-    choice = prompter.choose("ai_provider", "Which AI provider do you want as primary?", _PROVIDER_OPTIONS, 0)
-    env: dict[str, str] = {}
+    current_provider = existing.get("FLORA_AI_PROVIDER", "gemini")
+    default_index = (
+        _PROVIDER_ENV_VALUES.index(current_provider) if current_provider in _PROVIDER_ENV_VALUES else 0
+    )
+    choice = prompter.choose(
+        "ai_provider", "Which AI provider do you want as primary?", _PROVIDER_OPTIONS, default_index
+    )
+    # WHY always set FLORA_AI_PROVIDER explicitly (even for Gemini, config.py's
+    # own implicit default): write_env() now MERGES into an existing .env
+    # rather than overwriting it wholesale — if a user switches away from a
+    # previously-configured "openai"/"anthropic" back to Gemini, omitting
+    # this key here would leave the OLD provider value in place untouched.
+    env: dict[str, str] = {"FLORA_AI_PROVIDER": _PROVIDER_ENV_VALUES[choice]}
     if choice == 0:
-        env["FLORA_API_KEY"] = prompter.text("gemini_api_key", "Gemini API key", secret=True)
-    elif choice == 1:
-        env["FLORA_AI_PROVIDER"] = "openai"
-        env["FLORA_OPENAI_API_KEY"] = prompter.text("openai_api_key", "API key", secret=True)
-        env["FLORA_OPENAI_BASE_URL"] = prompter.text(
-            "openai_base_url", "Base URL", default="https://api.openai.com/v1"
+        env["FLORA_API_KEY"] = prompter.text(
+            "gemini_api_key", "Gemini API key", default=existing.get("FLORA_API_KEY", ""), secret=True
         )
-        env["FLORA_OPENAI_MODEL"] = prompter.text("openai_model", "Model name (e.g. gpt-4o)")
+    elif choice == 1:
+        env["FLORA_OPENAI_API_KEY"] = prompter.text(
+            "openai_api_key", "API key", default=existing.get("FLORA_OPENAI_API_KEY", ""), secret=True
+        )
+        env["FLORA_OPENAI_BASE_URL"] = prompter.text(
+            "openai_base_url", "Base URL",
+            default=existing.get("FLORA_OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        )
+        env["FLORA_OPENAI_MODEL"] = prompter.text(
+            "openai_model", "Model name (e.g. gpt-4o)", default=existing.get("FLORA_OPENAI_MODEL", "")
+        )
     else:
-        env["FLORA_AI_PROVIDER"] = "anthropic"
-        env["FLORA_ANTHROPIC_API_KEY"] = prompter.text("anthropic_api_key", "Anthropic API key", secret=True)
+        env["FLORA_ANTHROPIC_API_KEY"] = prompter.text(
+            "anthropic_api_key", "Anthropic API key",
+            default=existing.get("FLORA_ANTHROPIC_API_KEY", ""), secret=True
+        )
 
     print("\n--- Claude Code CLI (optional, separate from the above) ---")
+    claude_cli_default = (
+        existing["FLORA_USE_CLAUDE_CLI_FOR_DEEP"].lower() == "true"
+        if "FLORA_USE_CLAUDE_CLI_FOR_DEEP" in existing
+        else shutil.which("claude") is not None
+    )
     if prompter.confirm(
         "use_claude_cli",
         "Also route the 'deep' reasoning tier through a Claude Code subscription "
         "(needs the `claude` CLI installed and logged in separately)?",
-        default=shutil.which("claude") is not None,
+        default=claude_cli_default,
     ):
         env["FLORA_USE_CLAUDE_CLI_FOR_DEEP"] = "true"
     else:
@@ -434,15 +502,68 @@ def setup_qiskit_venv(prompter: Prompter) -> Optional[str]:
     return None if venv_path == _DEFAULT_QISKIT_VENV else str(venv_path / "bin" / "python3")
 
 
+def _read_env_keys(path: Path) -> dict:
+    """Parses an existing .env into a plain KEY -> unquoted-value dict,
+    ignoring comments/blank lines. Returns {} if the file doesn't exist."""
+    values: dict = {}
+    if not path.exists():
+        return values
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        values[key.strip()] = value.strip().strip('"')
+    return values
+
+
 def write_env(env_vars: dict, prompter: Prompter) -> None:
-    if ENV_PATH.exists():
-        if not prompter.confirm("overwrite_env", f"{ENV_PATH} already exists. Overwrite?", default=False):
-            print("Kept existing .env unchanged.")
-            return
-    lines = [f'{key}="{value}"' for key, value in env_vars.items() if value]
-    ENV_PATH.write_text("\n".join(lines) + "\n")
+    if not ENV_PATH.exists():
+        lines = [f'{key}="{value}"' for key, value in env_vars.items() if value]
+        ENV_PATH.write_text("\n".join(lines) + "\n")
+        os.chmod(ENV_PATH, 0o600)
+        print(f"Wrote {ENV_PATH} (mode 600).")
+        return
+
+    # WHY merge instead of the old overwrite-the-whole-file-or-keep-it-all
+    # behavior: verified live as a real correctness risk — re-running the
+    # installer with, say, just a new voice model to add would otherwise
+    # either silently DROP the existing provider's API key entirely (if the
+    # user said "yes, overwrite" not realizing env_vars here only ever
+    # contained what THIS run asked about) or refuse to add the one new
+    # value at all (if they said "no"). Merging means re-running never
+    # loses a value this run didn't touch, and only asks when something is
+    # actually changing.
+    raw_lines = ENV_PATH.read_text().splitlines()
+    existing = _read_env_keys(ENV_PATH)
+    merged = {**existing, **{k: v for k, v in env_vars.items() if v}}
+    if merged == existing:
+        print(f"{ENV_PATH} already up to date — nothing to change.")
+        return
+
+    changed = {k: v for k, v in merged.items() if existing.get(k) != v}
+    print(f"{ENV_PATH} already exists — updating: {', '.join(changed)}")
+    if not prompter.confirm("update_env", "Apply this update?", default=True):
+        print("Left .env unchanged.")
+        return
+
+    seen = set()
+    new_lines = []
+    for line in raw_lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.partition("=")[0].strip()
+            if key in merged:
+                new_lines.append(f'{key}="{merged[key]}"')
+                seen.add(key)
+                continue
+        new_lines.append(line)
+    for key, value in merged.items():
+        if key not in seen:
+            new_lines.append(f'{key}="{value}"')
+    ENV_PATH.write_text("\n".join(new_lines) + "\n")
     os.chmod(ENV_PATH, 0o600)
-    print(f"Wrote {ENV_PATH} (mode 600).")
+    print(f"Updated {ENV_PATH} (mode 600).")
 
 
 def _docker_daemon_active() -> bool:
@@ -521,15 +642,38 @@ _EXEC_START_PRE = (
 )
 
 
+def _flora_daemon_active() -> bool:
+    if not shutil.which("systemctl"):
+        return False
+    return subprocess.run(
+        ["systemctl", "--user", "is-active", "--quiet", "flora-daemon.service"]
+    ).returncode == 0
+
+
 def setup_systemd_service(prompter: Prompter) -> None:
     print("\n--- systemd service ---")
-    if not prompter.confirm("setup_systemd", "Install and enable the flora-daemon.service systemd unit?"):
-        return
     exec_start_pre = _EXEC_START_PRE if is_wayland_session() else ""
+    new_content = _UNIT_TEMPLATE.format(repo_root=REPO_ROOT, exec_start_pre=exec_start_pre)
+    already_installed = SYSTEMD_UNIT_PATH.exists()
+    unchanged = already_installed and SYSTEMD_UNIT_PATH.read_text() == new_content
+    was_active = _flora_daemon_active()
+
+    if unchanged and was_active:
+        print("flora-daemon.service is already installed and running — nothing to do.")
+        return
+    if already_installed:
+        prompt = "flora-daemon.service is already installed. Update it and (re)start now?"
+    else:
+        prompt = "Install and enable the flora-daemon.service systemd unit?"
+    if not prompter.confirm("setup_systemd", prompt, default=True):
+        return
     SYSTEMD_UNIT_DIR.mkdir(parents=True, exist_ok=True)
-    SYSTEMD_UNIT_PATH.write_text(_UNIT_TEMPLATE.format(repo_root=REPO_ROOT, exec_start_pre=exec_start_pre))
+    SYSTEMD_UNIT_PATH.write_text(new_content)
     _run(["systemctl", "--user", "daemon-reload"])
-    _run(["systemctl", "--user", "enable", "--now", "flora-daemon.service"])
+    if was_active:
+        _run(["systemctl", "--user", "restart", "flora-daemon.service"])
+    else:
+        _run(["systemctl", "--user", "enable", "--now", "flora-daemon.service"])
 
 
 _HYPRLAND_LUA_SNIPPET = """
@@ -941,6 +1085,21 @@ def run_verification() -> None:
     print("\nDone. See SETUP.md's Verification section for the full end-to-end checklist.")
 
 
+_CONFIG_ACTION_OPTIONS = [
+    "Keep it as-is — just check for missing system packages/updates (recommended)",
+    "Change the AI provider/API key only",
+    "Start over (reconfigure everything below)",
+]
+
+
+def _describe_existing_config(existing: dict) -> None:
+    print(f"  AI provider: {existing.get('FLORA_AI_PROVIDER', 'gemini')}")
+    if existing.get("DEFAULT_VOICE_MODEL"):
+        print(f"  Voice model: {existing['DEFAULT_VOICE_MODEL']}")
+    if existing.get("FLORA_QISKIT_VENV_PYTHON"):
+        print(f"  Qiskit venv: {existing['FLORA_QISKIT_VENV_PYTHON']}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive installer for Florinda")
     parser.add_argument(
@@ -958,17 +1117,39 @@ def main() -> None:
     desktop = detect_desktop()
     print(f"Package manager: {pm} | Desktop: {desktop}")
 
+    # WHY this exists: verified live as a real annoyance, not theoretical —
+    # re-running this installer used to unconditionally re-ask for the AI
+    # provider/API key (and voice model, and Qiskit venv) every single time,
+    # even on a machine that was already fully configured, discarding
+    # whatever was typed if the user declined to overwrite .env at the end.
+    # Detecting an existing, already-configured .env up front and asking
+    # ONCE what to do with it (matching how e.g. rustup/homebrew-style
+    # installers behave on a re-run) means a routine update only asks about
+    # what's actually missing, not everything from scratch every time.
+    existing_env = _read_env_keys(ENV_PATH)
+    if existing_env:
+        print("\n--- Existing configuration found ---")
+        _describe_existing_config(existing_env)
+        config_action = prompter.choose(
+            "existing_config_action", "What would you like to do?", _CONFIG_ACTION_OPTIONS, 0
+        )
+    else:
+        config_action = 2  # nothing to keep on a genuinely fresh install
+
     try:
         install_system_packages(pm, prompter)
         setup_venv(prompter)
         setup_ollama(pm, prompter)
-        env_vars = prompt_ai_provider(prompter)
-        voice_model = prompt_voice_model(prompter)
-        if voice_model:
-            env_vars["DEFAULT_VOICE_MODEL"] = voice_model
-        qiskit_venv_python = setup_qiskit_venv(prompter)
-        if qiskit_venv_python:
-            env_vars["FLORA_QISKIT_VENV_PYTHON"] = qiskit_venv_python
+        env_vars: dict[str, str] = {}
+        if config_action in (1, 2):
+            env_vars.update(prompt_ai_provider(prompter, existing_env))
+        if config_action == 2:
+            voice_model = prompt_voice_model(prompter)
+            if voice_model:
+                env_vars["DEFAULT_VOICE_MODEL"] = voice_model
+            qiskit_venv_python = setup_qiskit_venv(prompter)
+            if qiskit_venv_python:
+                env_vars["FLORA_QISKIT_VENV_PYTHON"] = qiskit_venv_python
         write_env(env_vars, prompter)
         needs_relogin = setup_docker(prompter)
         setup_systemd_service(prompter)
