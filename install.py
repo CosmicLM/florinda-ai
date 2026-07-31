@@ -502,6 +502,41 @@ def setup_qiskit_venv(prompter: Prompter) -> Optional[str]:
     return None if venv_path == _DEFAULT_QISKIT_VENV else str(venv_path / "bin" / "python3")
 
 
+LEARNXINYMINUTES_REPO_PATH = Path.home() / ".local/share/flora-ai/learnxinyminutes-docs"
+
+
+def setup_learnxinyminutes_snippets(prompter: Prompter) -> None:
+    """Optional — pre-clones the real learnxinyminutes-docs repo locally so
+    tools/learnxinyminutes_docs.py's language-syntax lookups work instantly
+    and offline instead of hitting GitHub's raw-content/API hosts (and their
+    unauthenticated rate limit) on every first lookup. Purely a local
+    mirror: learnxinyminutes_docs.py already falls back to fetching+caching
+    live from GitHub on its own when this hasn't been set up, so declining
+    here loses nothing but some speed and a rate-limit cushion — same
+    "optional, tool still works without it" shape as setup_qiskit_venv
+    above, just a much smaller download (plain markdown, no venv)."""
+    print("\n--- learnxinyminutes syntax reference (optional) ---")
+    if not shutil.which("git"):
+        print("git not found — skipping. Language lookups will fetch live from GitHub instead.")
+        return
+    if not prompter.confirm(
+        "setup_learnxinyminutes_snippets",
+        "Download a local copy of the learnxinyminutes-docs snippet reference "
+        "(a few MB) so language syntax lookups work offline and instantly?",
+    ):
+        print("Skipped — lookups will fetch live from GitHub (and cache locally) as needed instead.")
+        return
+    if (LEARNXINYMINUTES_REPO_PATH / ".git").exists():
+        _run(["git", "pull", "--ff-only"], cwd=LEARNXINYMINUTES_REPO_PATH)
+    else:
+        LEARNXINYMINUTES_REPO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _run([
+            "git", "clone", "--depth", "1",
+            "https://github.com/adambard/learnxinyminutes-docs", str(LEARNXINYMINUTES_REPO_PATH),
+        ])
+    print(f"Snippet reference ready at {LEARNXINYMINUTES_REPO_PATH}.")
+
+
 def _read_env_keys(path: Path) -> dict:
     """Parses an existing .env into a plain KEY -> unquoted-value dict,
     ignoring comments/blank lines. Returns {} if the file doesn't exist."""
@@ -1152,6 +1187,7 @@ def main() -> None:
                 env_vars["FLORA_QISKIT_VENV_PYTHON"] = qiskit_venv_python
         write_env(env_vars, prompter)
         needs_relogin = setup_docker(prompter)
+        setup_learnxinyminutes_snippets(prompter)
         setup_systemd_service(prompter)
         setup_keybind(desktop, prompter)
         run_verification()

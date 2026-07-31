@@ -31,8 +31,17 @@ list) its unauthenticated REST API, which is rate-limited per IP — repeat
 lookups of the same language/keyword within a work session shouldn't cost a
 new request every time, and this content changes rarely enough that a
 multi-day cache is safe.
+
+WHY an optional local clone (LOCAL_REPO_PATH) as a third source, ahead of
+both the cache and the network: install.py's setup_learnxinyminutes_snippets
+step can pre-clone the real repo so lookups work instantly and fully
+offline, with no GitHub request at all. This is purely an accelerator —
+everything above already falls back to fetch+cache on its own when
+LOCAL_REPO_PATH doesn't exist, so skipping that installer step costs
+nothing but a bit of speed and some of GitHub's rate limit.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -45,6 +54,10 @@ import requests
 RAW_BASE = "https://raw.githubusercontent.com/adambard/learnxinyminutes-docs/master"
 REPO_URL = "https://github.com/adambard/learnxinyminutes-docs/blob/master"
 TREE_URL = "https://api.github.com/repos/adambard/learnxinyminutes-docs/git/trees/master?recursive=1"
+LOCAL_REPO_PATH = Path(
+    os.environ.get("FLORA_LEARNXINYMINUTES_REPO")
+    or (Path.home() / ".local/share/flora-ai/learnxinyminutes-docs")
+)
 CACHE_DIR = Path.home() / ".local/share/flora-ai/learnxinyminutes-cache"
 TREE_CACHE_PATH = CACHE_DIR / "_tree.json"
 CACHE_TTL_S = 7 * 24 * 3600
@@ -89,6 +102,12 @@ def _load_language_slugs() -> list[str]:
     """Returns every real, root-level language page's slug (filename minus
     .md) from the repo's actual file tree — root level only, since
     subdirectories (e.g. fr/python.md) are translations of the same page."""
+    if LOCAL_REPO_PATH.is_dir():
+        return sorted(
+            path.stem for path in LOCAL_REPO_PATH.glob("*.md")
+            if path.stem.lower() not in _NON_LANGUAGE_PAGES
+        )
+
     if TREE_CACHE_PATH.exists() and time.time() - TREE_CACHE_PATH.stat().st_mtime < CACHE_TTL_S:
         return json.loads(TREE_CACHE_PATH.read_text())
 
@@ -134,8 +153,14 @@ def _page_cache_path(slug: str) -> Path:
 
 
 def fetch_page(slug: str) -> str:
-    """Returns the real, raw markdown for slug's page, cached locally for
-    CACHE_TTL_S so repeated lookups don't refetch it every time."""
+    """Returns the real, raw markdown for slug's page — read straight off
+    disk if the optional local clone is present (see LOCAL_REPO_PATH),
+    otherwise fetched over the network and cached locally for CACHE_TTL_S so
+    repeated lookups don't refetch it every time."""
+    local_path = LOCAL_REPO_PATH / f"{slug}.md"
+    if local_path.exists():
+        return local_path.read_text()
+
     cache_path = _page_cache_path(slug)
     if cache_path.exists() and time.time() - cache_path.stat().st_mtime < CACHE_TTL_S:
         return cache_path.read_text()
