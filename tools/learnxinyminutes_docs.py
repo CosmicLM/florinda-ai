@@ -350,6 +350,10 @@ def _main() -> None:
     open_parser = subparsers.add_parser("open")
     open_parser.add_argument("language")
 
+    popup_parser = subparsers.add_parser("popup")
+    popup_parser.add_argument("language")
+    popup_parser.add_argument("title", nargs="+")
+
     args = parser.parse_args()
 
     try:
@@ -375,14 +379,23 @@ def _main() -> None:
             keyword = " ".join(args.keyword)
             snippet = read_match(slug, keyword, args.match_number)
             print(snippet)
-            popup_snippet(snippet, slug, title=f"{slug} — {keyword}")
-            print("\n(Snippet already popped up on screen — no further action needed.)")
             return
 
         if args.action == "open":
             slug = resolve_language(args.language)
             url = open_page(slug)
             print(f"Opened {url}")
+            return
+
+        if args.action == "popup":
+            slug = resolve_language(args.language)
+            title = " ".join(args.title)
+            text = sys.stdin.read()
+            if not text.strip():
+                print("Error: no text given on stdin to pop up", file=sys.stderr)
+                sys.exit(1)
+            popup_snippet(text, slug, title=title)
+            print("Popped up on screen — no further action needed.")
             return
     except LearnXInYMinutesError as error:
         print(f"Error: {error}", file=sys.stderr)

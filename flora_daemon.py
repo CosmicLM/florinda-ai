@@ -5,6 +5,7 @@ import socket
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from string import Template
 from typing import Callable, Optional
@@ -19,6 +20,11 @@ from infra.conversation_memory import ConversationMemory
 from executor import SystemTerminal
 from processor import ParsedInstruction, PromptProcessor
 from state_manifest import StateManifest
+# WHY this import, same precedent as watchers/quantum_watcher.py's own
+# `from tools.research_library import save as _save_to_library`: the
+# session-recap archiving below (see _archive_stale_conversation) reuses
+# the exact same writable store, not a second one.
+from tools.research_library import save as _save_session_recap
 from voice.voice import AudioEngine
 
 logger = logging.getLogger(__name__)
@@ -137,6 +143,18 @@ class FloraDaemon:
         # ptt_ipc.py's on_press callback), so a still-generating/still-
         # speaking turn can notice and bail out fast instead of finishing.
         self._interrupt_event = threading.Event()
+        # WHY attached after construction, not a constructor param like
+        # on_thinking/on_talking above: AccuracyVerifier's on_report callback
+        # needs FloraService's _speak_proactive_comment, and FloraService's
+        # own constructor takes this FloraDaemon instance as an argument —
+        # it doesn't exist yet at FloraDaemon construction time. Same
+        # attach_x pattern flora_service.py already uses for TaskWatcher/
+        # QuantumWatcher/MorningBriefing, applied here instead of a forward
+        # reference into a not-yet-existing `service` closure.
+        self._accuracy_verifier = None
+
+    def attach_accuracy_verifier(self, verifier) -> None:
+        self._accuracy_verifier = verifier
 
     def interrupt(self) -> None:
         """Barge-in: stop whatever Florinda is currently saying or generating,
@@ -155,6 +173,8 @@ class FloraDaemon:
         self._current_sys_info = sys_info
         if self._activity_log:
             self._activity_log.write("YOU", user_input)
+        if self._memory:
+            self._archive_stale_conversation()
         history = self._memory.get_history_contents() if self._memory else None
         instruction = self._generate(user_input, sys_info, conversation_history=history)
         if self._interrupt_event.is_set():
@@ -162,9 +182,22 @@ class FloraDaemon:
             # here may be truncated mid-field; abandon it entirely rather
             # than execute a partial/garbled command or remember it.
             return
+        # WHY snapshotted before _handle_instruction, not just read from
+        # self._recent_commands after: a recursive turn's actual research
+        # command (web_search.py/academic_search.py) typically runs on an
+        # EARLIER leg than final_instruction — the one that then speaks from
+        # its results — so only the commands added DURING this call are this
+        # turn's own, not the full trimmed window which can hold a prior,
+        # unrelated turn's commands too.
+        commands_before = len(self._recent_commands)
         final_instruction = self._handle_instruction(instruction)
         self._persist_state(instruction)
         self._remember_turn(user_input, final_instruction)
+        if self._accuracy_verifier is not None:
+            this_turn_commands = [
+                (command, output) for command, output, _ran_at in self._recent_commands[commands_before:]
+            ]
+            self._accuracy_verifier.check_async(user_input, final_instruction.speech, this_turn_commands)
 
     def _generate(
         self, user_input: str, sys_info: str, conversation_history: Optional[list] = None
@@ -216,6 +249,25 @@ class FloraDaemon:
             return
         self._memory.add_user_turn(user_input)
         self._memory.add_assistant_turn(final_instruction.speech)
+
+    def _archive_stale_conversation(self) -> None:
+        """Archives a just-ended conversation into the research library
+        BEFORE ConversationMemory's own staleness reset would otherwise
+        silently discard it — this is the "remembers where it left off"
+        continuity that survives past ConversationMemory's short-term
+        reset_after_s window (default 30 min), not just within it. A raw
+        join of the discarded turns, not an LLM-summarized recap, for this
+        first version — see INSTRUCTION.md's Session Continuity section for
+        how this gets used on the way back in."""
+        turns = self._memory.pop_stale_turns()
+        if not turns:
+            return
+        body = "\n\n".join(f"{turn['role']}: {turn['content']}" for turn in turns)
+        title = f"Session recap {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        try:
+            _save_session_recap(title, body, tags=["session-recap"])
+        except Exception:
+            logger.exception("failed to archive stale conversation to research library")
 
     def _speak_chunk(self, sentence: str) -> None:
         """Wraps AudioEngine directly so a TTS-pipeline failure is logged
