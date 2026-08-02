@@ -43,8 +43,10 @@ nothing but a bit of speed and some of GitHub's rate limit.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from difflib import get_close_matches
 from pathlib import Path
@@ -285,6 +287,30 @@ def read_match(slug: str, keyword: str, match_number: int) -> str:
     return "\n".join(lines)
 
 
+def popup_snippet(text: str, slug: str, title: str) -> None:
+    """Pops `text` up in its own kitty window immediately — same "actually
+    show it, don't just print text the user has to go looking for" pattern
+    as figure_popup.py's popup_image (shared by qiskit_runner.py/
+    latex_runner.py/rdkit_runner.py), just for a code snippet instead of an
+    image. Syntax-highlighted via `bat` when it's installed (a real system
+    dependency check, not assumed); falls back to plain `cat` otherwise —
+    either way something real pops up, never a silent no-op. Stays open
+    (an interactive shell afterward) until the user closes it themselves,
+    same reasoning as figure_popup.py's own WHY note."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp_file:
+        tmp_file.write(text)
+        tmp_path = tmp_file.name
+    if shutil.which("bat"):
+        viewer = f"bat --style=plain --paging=never --language={slug} {tmp_path!r}"
+    else:
+        viewer = f"cat {tmp_path!r}"
+    inner = f"{viewer} && exec sh"
+    subprocess.Popen(
+        ["kitty", "--class", "flora-figure", "--title", title, "-e", "sh", "-c", inner],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
 def open_page(slug: str) -> str:
     """Opens the real page on GitHub in the user's browser (nicely rendered,
     the whole cheatsheet at once) and returns its URL."""
@@ -347,7 +373,10 @@ def _main() -> None:
         if args.action == "read":
             slug = resolve_language(args.language)
             keyword = " ".join(args.keyword)
-            print(read_match(slug, keyword, args.match_number))
+            snippet = read_match(slug, keyword, args.match_number)
+            print(snippet)
+            popup_snippet(snippet, slug, title=f"{slug} — {keyword}")
+            print("\n(Snippet already popped up on screen — no further action needed.)")
             return
 
         if args.action == "open":
