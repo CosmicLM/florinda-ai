@@ -7,8 +7,9 @@ here and why — this guide is the "how," that one's the "what."
 **Fastest path**: `./install.sh` does everything below interactively —
 detects your distro (Arch/Debian/Fedora) and desktop, installs system
 packages (confirming before any `sudo` step), sets up the venv, prompts for
-an AI provider and voice model, optionally sets up a Qiskit environment,
-writes `.env`, brings up the SearXNG container, and installs the systemd
+an AI provider and voice model, optionally sets up a Qiskit environment and
+a local learnxinyminutes snippet reference, writes `.env`, brings up the
+SearXNG container, and installs the systemd
 service. What follows is what it's actually doing, for anyone who wants to
 run the steps by hand, understand them, or debug a step that didn't go as
 expected. Already installed? See "Updating an existing install" near the
@@ -421,6 +422,30 @@ FLORA_QISKIT_VENV_PYTHON="/path/to/your/venv/bin/python3"
 
 Without either, a Qiskit request just fails with a clear error naming
 exactly what's missing — not a crash, and nothing else is affected.
+
+## (Optional) learnxinyminutes syntax reference
+
+`learnxinyminutes_docs.py` lets Florinda hand over real, generic syntax
+boilerplate for any of the 200+ languages covered by
+[learnxinyminutes-docs](https://github.com/adambard/learnxinyminutes-docs)
+(e.g. "how do I write a function in Rust") instead of guessing at one from
+training data. This is entirely optional — skip it and the tool still
+works, it just fetches each page live from GitHub (and caches it locally)
+the first time it's needed. `install.sh` offers to pre-clone the repo
+locally so lookups are instant and work offline; to do it by hand instead:
+
+```bash
+git clone --depth 1 https://github.com/adambard/learnxinyminutes-docs \
+    ~/.local/share/flora-ai/learnxinyminutes-docs
+```
+
+That default path is what the tool looks for out of the box. If you'd
+rather keep the clone somewhere else, point at it instead:
+
+```bash
+# in .env
+FLORA_LEARNXINYMINUTES_REPO="/path/to/your/clone"
+```
 
 ## Updating an existing install
 

@@ -20,6 +20,7 @@ from colorama import init
 from google import genai
 
 from infra.activity_log import ActivityLog
+from watchers.accuracy_verifier import AccuracyVerifier
 from watchers.check_in_watcher import CheckInWatcher
 from config import ConfigurationError, ConfigVault
 from infra.conversation_memory import ConversationMemory
@@ -39,6 +40,7 @@ from watchers.system_health_watcher import SystemHealthWatcher
 from watchers.task_watcher import TaskWatcher
 from voice.voice import AudioEngine
 from voice.voice_input import TranscriptionEngine
+from voice.wake_word import WakeWordListener
 from watchers.watch_toggle import is_paused as watch_is_paused
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,7 @@ class FloraService:
         sys_info: SysInfoCache,
         ptt_queue: "queue.Queue[str]",
         ptt_server: PushToTalkServer,
+        wake_word_listener: WakeWordListener,
         audio: AudioEngine,
         terminal: SystemTerminal,
         status: StatusBroadcaster,
@@ -127,6 +130,7 @@ class FloraService:
         self._sys_info = sys_info
         self._ptt_queue = ptt_queue
         self._ptt_server = ptt_server
+        self._wake_word_listener = wake_word_listener
         self._audio = audio
         self._terminal = terminal
         self._status = status
@@ -165,6 +169,7 @@ class FloraService:
             "ptt-ipc": threading.Thread(target=self._ptt_server.run, name="ptt-ipc", daemon=True),
             "screen-watch": threading.Thread(target=self._screen_watch_loop, name="screen-watch", daemon=True),
             "voice-worker": threading.Thread(target=self._voice_worker_loop, name="voice-worker", daemon=True),
+            "wake-word": threading.Thread(target=self._wake_word_listener.run, name="wake-word", daemon=True),
         }
         for thread in threads.values():
             thread.start()
@@ -182,11 +187,13 @@ class FloraService:
                 if not thread.is_alive():
                     logger.error("%s thread died unexpectedly, exiting for systemd restart", name)
                     self._ptt_server.stop()
+                    self._wake_word_listener.stop()
                     self._status.clear()
                     sys.exit(1)
             self._stop_event.wait(2)
         logger.info("flora_service shutting down")
         self._ptt_server.stop()
+        self._wake_word_listener.stop()
         self._status.clear()
         # WHY join with a timeout: threads are daemon=True so the process would
         # exit immediately once main() returns, racing PushToTalkServer's
@@ -553,6 +560,30 @@ def main() -> None:
     # be enough to barge in on an active reply.
     ptt_server = PushToTalkServer(settings.ptt_socket_path, ptt_queue)
     mic = MicRecorder(settings.mic_source)
+    # WHY should_listen re-checks both flags on every call rather than being
+    # decided once at startup: settings.wake_word_enabled is read fresh each
+    # time (not just at construction) so a future runtime toggle would take
+    # effect without a restart, same as watch_is_paused() already does for
+    # screen-watch — see wake_word.py's own WHY note on why "paused" must
+    # mean the mic is actually not being read, not just ignored.
+    wake_word_listener = WakeWordListener(
+        ptt_queue=ptt_queue,
+        model_name=settings.wake_word_model,
+        threshold=settings.wake_word_threshold,
+        silence_timeout_s=settings.wake_word_silence_timeout_s,
+        max_utterance_s=settings.wake_word_max_utterance_s,
+        should_listen=lambda: settings.wake_word_enabled and not watch_is_paused(),
+        # WHY passing this straight through, not verified equivalent to
+        # MicRecorder's use of the same setting: FLORA_MIC_SOURCE was
+        # designed for arecord's `-D` flag (an ALSA device string like
+        # "hw:0,0"/"default") — sounddevice/PortAudio has its own device
+        # naming and may not resolve an ALSA-style string the same way.
+        # The default (unset -> None -> each library's own system default)
+        # is the verified path; a customized FLORA_MIC_SOURCE needs a real
+        # live check here once wake-word is actually enabled on a machine
+        # that sets one.
+        mic_device=settings.mic_source,
+    )
 
     print("Loading speech-to-text model...")
     stt = TranscriptionEngine(settings.stt_model, settings.stt_device)
@@ -563,7 +594,7 @@ def main() -> None:
 
     service = FloraService(
         settings, daemon, confirm_gate, mic, stt, observer, sys_info,
-        ptt_queue, ptt_server, audio, terminal, status,
+        ptt_queue, ptt_server, wake_word_listener, audio, terminal, status,
         activity_log=activity_log,
     )
 
@@ -580,6 +611,17 @@ def main() -> None:
         on_report=lambda c: service._speak_proactive_comment(c, label="FLORINDA (task-report)")
     )
     service.attach_task_watcher(task_watcher)
+
+    if settings.anthropic_api_key:
+        accuracy_verifier = AccuracyVerifier(
+            on_report=lambda c: service._speak_proactive_comment(c, label="FLORINDA (accuracy-check)"),
+            anthropic_api_key=settings.anthropic_api_key,
+            anthropic_model=settings.anthropic_model,
+            web_search_host=settings.web_search_host,
+        )
+        daemon.attach_accuracy_verifier(accuracy_verifier)
+    else:
+        logger.warning("FLORA_ANTHROPIC_API_KEY not set — independent accuracy checking disabled")
 
     if settings.morning_briefing_enabled:
         morning_briefing = MorningBriefing(
