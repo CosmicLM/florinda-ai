@@ -74,7 +74,7 @@ _QISKIT_KEYWORD_RE = re.compile(r"\b(qiskit|quantum circuit|qubit|quantum gate)\
 # live as a real bug (not theoretical) — this used to hardcode this dev
 # machine's own absolute path, and a fresh install on a different
 # machine/user tried to run the literal string
-# `/home/manjaro/Projects/flora-ai/tools/qiskit_docs.py`, which doesn't
+# `/home/<dev-machine-user>/florinda-ai/tools/qiskit_docs.py`, which doesn't
 # exist there. This string is inserted as the raw VALUE of INSTRUCTION.md's
 # $QISKIT_NOTES placeholder (see processor.py's _load_system_prompt) — a
 # single-pass Template.safe_substitute(), so a literal "$PROJECT_DIR" typed

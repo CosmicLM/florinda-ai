@@ -1,602 +1,162 @@
 ---
-description: "Use when writing or reviewing Python code for flora-ai. Covers architectural integrity, naming clarity, error handling patterns, and safety constraints specific to voice pipeline and shell execution. Apply the 20-line rule, SRP, dependency inversion, and null avoidance."
+description: "Use when writing or reviewing Python code for florinda-ai. Covers this project's actual established conventions: WHY-driven commentary, no hardcoded dev-machine paths, real complete mechanics over stubs, and the safety checkpoints around command execution."
 applyTo: "**/*.py"
 ---
 
-# Florinda Code Review & Architectural Principles
+# Florinda Code Review Principles
 
-This guide enforces **deep architectural thinking** over surface compliance. Every module must withstand scrutiny on naming, intent, error handling, and single responsibility.
+This project has an established, consistent style across `backends/`,
+`tools/`, `watchers/`, `infra/`, and the entry points. Review against
+*these* conventions — not a generic clean-code checklist — since several
+generic rules (strict function-length caps, "never return None") don't
+match how this codebase is actually written and would produce reviews that
+fight the existing design instead of catching real problems.
 
-## High-Level Logic: The Voice Pipeline
+## PART I: COMMENTS — WHY, not WHAT
 
-The system pipelines input through 4 critical stages:
+The codebase's comments consistently explain **why something non-obvious
+is true**, often citing a specific bug that was actually observed running
+the assistant — not what the following line does.
 
-```
-(1) Input Processing → (2) API Transformation → (3) Safe Execution → (4) Voice Output
-```
-
-Each stage must be **isolated, testable, and single-purposed**. Violations here cascade failures through the entire pipeline.
-
----
-
-## PART I: NAMING & INTENT
-
-**Why this matters**: A name should answer why something exists. If you can't name it clearly, you don't understand it.
-
-### Revealing Intent
-
-#### ✅ **DO**: Names that tell the story
-
-- `parsed_response = self._parse_response_for_command_and_speech()` 
-  - Intent: Extract execution command and voice output from AI response
-  - Why this method exists: API returns mixed data; we need to separate concerns
-
-- `is_null_command(cmd)` 
-  - Intent: Boolean check for forbidden placeholder values
-  - Why: Shell safety gate; "null" is our no-op marker
-
-- `handle_api_timeout_with_fallback()` 
-  - Intent: Wrap API errors, return graceful degradation
-  - Why: Network calls fail; user expects something, not silence
-
-#### ❌ **DON'T**: Noise words and false signals
-
-- `response_data`, `cmd_text`, `result_obj` → Generic; doesn't explain purpose
-- `do_process()`, `process_input()` → Vague action; use verbs that reveal intent
-- `CoreModule`, `Helper`, `Manager` → Wrong abstraction layer
-
-### Disinformation Check
-
-- **Wrong**: Class named `Pipeline` that contains only a single `execute()` method
-  - **Why it fails**: "Pipeline" implies orchestration; a single method isn't orchestration
-  - **Fix**: Name it `CommandRouter` or `ResponseDispatcher`
-
-- **Wrong**: Method named `get_output()` that also modifies internal state
-  - **Why it fails**: Command-query separation violated; "get" says read-only
-  - **Fix**: Name it `extract_and_log_output()` or split into two methods
-
-### Parts of Speech Rule
-
-- **Classes** = Nouns: `PromptProcessor`, `SystemTerminal`, `HyprCore`
-- **Methods** = Verbs: `speak()`, `run_command()`, `parse_response()`
-- **Booleans** = Predicates: `is_null_command()`, `has_pipe_separator()`, `was_successful()`
-
----
-
-## PART II: FUNCTION INTEGRITY
-
-**Why this matters**: Functions that do too much hide bugs and make testing impossible.
-
-### The 20-Line Rule
-
-Every function should fit on one screen (< 20 lines of actual logic, excluding comments).
-
-#### ❌ Current risk: `process()` in processor.py
-
-Looking at the code, if `process()` does:
-1. API call
-2. Response parsing
-3. Error handling for missing `.text` 
-4. Speech synthesis call
-5. Command execution
-6. Output composition
-
-→ This is **5 different responsibilities**. Each belongs in its own method.
-
-#### ✅ Correct structure (step-by-step)
-
-```
-process(user_input):
-    Step 1: Call API, catch timeout
-    Step 2: Validate response exists (null check)
-    Step 3: Delegate to _handle_parsed_response()
-    Step 4: Return composed result
-    
-_handle_parsed_response(response_text):
-    Step 1: Parse COMMAND:|SPEECH: format
-    Step 2: Validate command safety (null check)
-    Step 3: Return {command, speech} tuple
-    
-_execute_with_safety(command, speech):
-    Step 1: Run SystemTerminal.run_command()
-    Step 2: Compose output
-    Step 3: Return result
-```
-
-**Why**: Each function does ONE thing; each is testable in isolation.
-
-### Singularity: One Job, Done Well
-
-Question every function:
-- **Does it have a reason to change?** If yes, extract that reason into a separate function.
-- **Can I name it with a verb + clear object?** If it's "do_stuff()", split it.
-
-**Example violation**: 
+### ✅ DO: real example from this codebase (`flora_daemon.py`)
 ```python
-def process(user_input):
-    # This validates, transforms, executes, AND speaks
-    # 4 reasons to change = 4 functions should exist
+# WHY this exists: observed live — asked to "summarize" a Canvas quiz page
+# right after already opening it, the model had no ground truth about what
+# it had just tried and silently re-ran the identical open-url command,
+# describing a vague restatement as if it were new information. Telling the
+# model "don't repeat yourself" in prose alone is easy to ignore under
+# uncertainty; these two constants back that instruction with real,
+# code-enforced state instead of relying on the model to reconstruct it.
+_RECENT_ACTIONS_WINDOW_S = 300.0
+_RECENT_ACTIONS_MAX = 3
 ```
+This is the bar: cite what was actually observed (a real failure mode,
+a real constraint, a real API quirk), then explain the fix's reasoning —
+not a restatement of the code.
 
-### Abstraction Level: The Stepdown Rule
-
-All statements in a function should be at the **same level of abstraction**.
-
-#### ❌ Bad: Mixing abstraction levels
+### ❌ DON'T: comments that restate the code
 ```python
-def process(user_input):
-    response = self.client.models.generate_content(...)  # HIGH: API layer
-    if "|" not in response.text:                         # MED: parsing logic
-        return response.text                              # LOW: string return
-    parts = response.text.split("|", 1)                  # MED: parsing
-    cmd = parts[0].replace("COMMAND:", "").strip()       # LOW: string ops
+# Increment the counter
+counter += 1
+
+# Loop over the list
+for item in items:
 ```
-
-#### ✅ Good: Consistent abstraction
-```python
-def process(user_input):
-    api_response = self._call_gemini_api(user_input)     # HIGH: API
-    return self._handle_parsed_response(api_response)    # HIGH: routing
-    
-def _call_gemini_api(prompt):
-    return self.client.models.generate_content(...)      # MID: API call + error handling
-    
-def _handle_parsed_response(raw_text):
-    parsed = self._parse_response(raw_text)               # MID: parsing
-    return parsed                                         # HIGH: return
-```
-
-**Why**: New person reading `process()` understands the flow without diving into implementation details.
-
-### Argument Count: 0-2 Is the Limit
-
-**Why**: More than 2 arguments suggests the function is trying to do too much, or arguments are related (→ make an object).
-
-#### ❌ Bad: Too many arguments
-```python
-def execute_and_speak(cmd, speech, voice_model, user_context, should_log):
-    # 5 arguments = 5 different concerns mixed together
-```
-
-#### ✅ Good: Use an object when arguments are related
-```python
-class ExecutionContext:
-    def __init__(self, cmd, speech, voice_model):
-        self.cmd = cmd
-        self.speech = speech
-        self.voice_model = voice_model
-
-def execute_and_speak(context, should_log):
-    # 2 arguments, one is a cohesive object
-```
-
-### Side Effects: Hidden Tasks Are Bugs
-
-If a function is named `parse_response()` but also calls `self.speak()`, that's a **hidden side effect**. 
-
-**Rule**: A function should do exactly what its name says, nothing more.
-
-#### ❌ Hidden side effect in processor.py
-```python
-def process(user_input):
-    # ... parsing ...
-    self.speak(speech_part)  # HIDDEN: This isn't in the name!
-    return result
-```
-
-#### ✅ Separated concerns
-```python
-def process(user_input):
-    # Only processing; returns data
-    parsed = self._parse_and_execute(user_input)
-    return parsed
-
-def handle_response(parsed_data):
-    # Caller decides to speak
-    self.speak(parsed_data['speech'])
-```
-
-### Command-Query Separation
-
-A function either:
-- **Changes state** (command): returns nothing or success/failure
-- **Returns information** (query): doesn't modify state
-
-**Never do both.**
-
-#### ❌ Violates separation
-```python
-def get_and_execute_command(user_input):
-    cmd = self.parse(user_input)      # QUERY: retrieves data
-    self.terminal.run_command(cmd)    # COMMAND: modifies system state
-    return cmd                         # Returns data AND side-effected
-```
-
-#### ✅ Separated
-```python
-def parse_command(user_input):
-    # QUERY: Returns data only
-    return self.parse(user_input)
-
-def execute_command(cmd):
-    # COMMAND: Modifies state only
-    return self.terminal.run_command(cmd)
-```
-
----
-
-## PART III: ERROR HANDLING
-
-**Why this matters**: Silent failures hide Florinda's problems. Errors should be loud and specific.
-
-### Exceptions Over Error Codes
-
-**Never** return error codes like `{"status": "error", "code": 500}`. Raise exceptions.
-
-#### ❌ Bad: Error codes
-```python
-def run_command(cmd):
-    if not cmd:
-        return {"status": "failed", "message": "Empty command"}
-    result = subprocess.run(...)
-    if result.returncode != 0:
-        return {"status": "failed", "stderr": result.stderr}
-    return {"status": "success", "stdout": result.stdout}
-```
-
-**Problem**: Caller must check `.get("status")` every time. Easy to miss.
-
-#### ✅ Good: Exceptions
-```python
-def run_command(cmd):
-    if not cmd:
-        raise ValueError("Command cannot be empty")
-    result = subprocess.run(...)
-    if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {result.stderr}")
-    return result.stdout
-```
-
-**Why**: Caller must handle it or propagate; can't ignore.
-
-### The Null Rule: Never Return or Receive Null
-
-If a value could be null, that's a bug in your design. Use exceptions or return a wrapper object.
-
-#### ❌ Bad: Returns None/null
-```python
-def parse_response(raw_text):
-    if "|" not in raw_text:
-        return None  # Caller has to check "if result is None"
-    return parse(raw_text)
-```
-
-#### ✅ Good: Exceptions or wrapped return
-```python
-# Option 1: Raise exception
-def parse_response(raw_text):
-    if "|" not in raw_text:
-        raise ValueError("Response missing COMMAND:|SPEECH: separator")
-    return parse(raw_text)
-
-# Option 2: Return wrapper (for expected, non-error cases)
-class ParsedResponse:
-    def __init__(self, has_command, command=None, speech=""):
-        self.has_command = has_command
-        self.command = command
-        self.speech = speech
-
-def parse_response(raw_text):
-    if "|" not in raw_text:
-        return ParsedResponse(has_command=False, speech=raw_text)
-    return ParsedResponse(has_command=True, command=..., speech=...)
-```
-
-### Try-Catch Extraction
-
-Error handling logic should be in **dedicated functions**, not inline.
-
-#### ❌ Bad: Error logic mixed with main logic
-```python
-def process(user_input):
-    try:
-        response = self.client.models.generate_content(...)
-        parsed = self._parse_response(response.text)
-        result = self.execute(parsed['cmd'])
-        self.speak(parsed['speech'])
-        return result
-    except Exception as e:
-        print(f"Error: {e}")
-        return "I encountered an error"
-```
-
-**Problem**: Can't test error path; unclear what's being handled.
-
-#### ✅ Good: Dedicated error handler
-```python
-def process(user_input):
-    try:
-        response = self._call_api_safely(user_input)
-        parsed = self._parse_response_safely(response.text)
-        result = self._execute_and_speak_safely(parsed)
-        return result
-    except APIError as e:
-        return self._handle_api_error(e)
-    except ParseError as e:
-        return self._handle_parse_error(e)
-
-def _handle_api_error(error):
-    # Dedicated error response
-    return "I couldn't reach Gemini. Try again in a moment."
-
-def _handle_parse_error(error):
-    # Dedicated error response
-    return "I didn't understand my own response. Something went wrong."
-```
-
-**Why**: Each error type has its own handler; testable; clear recovery.
-
----
-
-## PART IV: CLASS DESIGN
-
-**Why this matters**: Bad class design forces bad functions. Classes define your system's boundaries.
-
-### Single Responsibility Principle (SRP)
-
-**Each class has ONE reason to change.**
-
-#### ❌ This class violates SRP
-```python
-class AIAssistant:
-    # Reason 1 to change: API format changes
-    def call_gemini(self):
-        ...
-    
-    # Reason 2 to change: Response parsing rules change
-    def parse_response(self):
-        ...
-    
-    # Reason 3 to change: Shell behavior changes
-    def run_command(self):
-        ...
-    
-    # Reason 4 to change: TTS behavior changes
-    def speak(self):
-        ...
-```
-
-**Problem**: If shell execution changes, you must modify AIAssistant. It shouldn't know about shells.
-
-#### ✅ Correct: Each class has ONE reason
-```python
-class PromptProcessor:
-    # Reason to change: Gemini API format or parsing rules
-    def process(self, user_input): ...
-
-class SystemTerminal:
-    # Reason to change: Shell execution behavior
-    def run_command(self, cmd): ...
-
-class HyprCore:
-    # Reason to change: TTS/voice settings
-    def speak(self, text): ...
-```
-
-### Law of Demeter: Avoid Train Wrecks
-
-**A module should not rely on internal structure of objects it receives.**
-
-#### ❌ Bad: Train wreck (reaching through multiple layers)
-```python
-def execute(ai_response):
-    cmd = ai_response.parser.output.command  # Reaches through 3 layers
-    self.terminal.run_command(cmd)
-```
-
-**Problem**: If parser structure changes, execution breaks.
-
-#### ✅ Good: Ask for what you need
-```python
-def execute(parsed_response):
-    cmd = parsed_response.get_command()  # Encapsulated method
-    self.terminal.run_command(cmd)
-```
-
-### Dependency Inversion: Depend on Abstractions, Not Concretions
-
-Classes should depend on **interfaces**, not on specific implementations.
-
-#### ❌ Bad: Depends on concrete class
-```python
-class HyprCore:
-    def __init__(self):
-        self.tts = PiperTTS()  # Locked to specific TTS
-        self.api = GeminiAPI()  # Locked to specific API
-
-    def speak(self, text):
-        self.tts.synthesize(text)  # Cannot swap for different TTS
-```
-
-**Problem**: Can't test with mock TTS; can't switch to different provider.
-
-#### ✅ Good: Depends on abstraction
-```python
-class TextToSpeechInterface:
-    def synthesize(self, text): raise NotImplementedError
-
-class HyprCore:
-    def __init__(self, tts_provider: TextToSpeechInterface):
-        self.tts = tts_provider  # Any implementation works
-
-    def speak(self, text):
-        self.tts.synthesize(text)  # Can be PiperTTS, MockTTS, other
-```
-
-**Why**: Testable; swappable; follows Open/Closed Principle.
-
----
-
-## PART V: FORMATTING & TESTING
-
-### Newspaper Metaphor
-
-Structure code like a newspaper:
-- **Headline (top)**: High-level orchestration
-- **First paragraph (upper)**: Key steps
-- **Details (bottom)**: Implementation
-
-#### ✅ Good structure
-```python
-def main():
-    # High-level: what Florinda does
-    input_text = get_user_input()
-    response = process_with_ai(input_text)
-    execute_and_speak(response)
-
-def process_with_ai(input_text):
-    # Mid-level: AI processing
-    raw_response = call_gemini_api(input_text)
-    return parse_response_safely(raw_response)
-
-def call_gemini_api(prompt):
-    # Low-level: API details
-    try:
-        response = self.client.models.generate_content(...)
-        return response
-    except Exception as e:
-        raise APIError(str(e))
-```
-
-**Why**: New developers scan from top and understand flow before diving into details.
-
-### F.I.R.S.T. Tests
-
-Every function with logic must have a test. Tests must be:
-
-- **Fast**: Runs in milliseconds
-- **Independent**: No dependencies on other tests
-- **Repeatable**: Same result every run
-- **Self-Validating**: Passes or fails; no "check the log manually"
-- **Timely**: Written with the code, not after
-
-#### ✅ Example test for safety gate
-```python
-def test_run_command_rejects_null_placeholder():
-    terminal = SystemTerminal()
-    with pytest.raises(ValueError):
-        terminal.run_command("null")
-
-def test_run_command_rejects_empty_string():
-    terminal = SystemTerminal()
-    with pytest.raises(ValueError):
-        terminal.run_command("")
-
-def test_parse_response_without_pipe_treats_as_speech_only():
-    processor = PromptProcessor()
-    result = processor._parse_response("Just a normal response")
-    assert result["execute"] == "null"
-    assert result["speak"] == "Just a normal response"
-```
-
----
-
-## PART VI: CODE REVIEW GRADING
-
-When you review code, apply this blunt rubric:
-
-### Violations Checklist
-
-Go through each code submission and mark violations:
-
-- [ ] Function > 20 lines of logic?
-- [ ] Function does multiple things?
-- [ ] Returns or passes null?
-- [ ] Method name doesn't match its behavior?
-- [ ] Mixed abstraction levels in one function?
-- [ ] More than 2 arguments (without object)?
-- [ ] Hidden side effects?
-- [ ] Error handling inline instead of delegated?
-- [ ] Class has multiple reasons to change?
-- [ ] "Train wreck" property access (a.b().c.d)?
-- [ ] Depends on concrete classes instead of interfaces?
-- [ ] Missing tests for logic branches?
-
-### Verdicts
-
-- **0 violations**: Professional. Merge it.
-- **1-2 violations**: Legacy-adjacent. Request specific fixes before merge.
-- **3+ violations**: Legacy Trash. Reject; require rewrite.
-
----
-
-## PART VII: COMMENTARY PLAN
-
-Specific comments to include (not "what the code does", but "why it exists"):
-
-### ✅ DO: Intent comments
-```python
-# We reject "null" because Gemini may output it as a no-op placeholder
-if cmd.lower() == NULL_COMMAND:
-    raise ValueError(...)
-
-# Split on first pipe only; response may contain pipes in the speech text
-cmd_part, speech_part = raw_text.split("|", 1)
-
-# Piper requires raw PCM audio; aplay expects 22050 Hz, 16-bit signed
-self.piper_cmd = f"piper-tts --model {model} --output_raw | aplay -r 22050 -f S16_LE -t raw"
-```
-
-### ❌ DON'T: Useless comments
-```python
-# Check if cmd exists
-if cmd:  # Obviously wrong; we don't need this
-
-# Return the result
-return result  # What else would you return?
-
-# API response
-response = client.generate_content(...)  # This is already clear from the code
-```
-
----
-
-## GROWTH TIP: The Boy Scout Rule
-
-Before you finish, find ONE thing you made slightly cleaner than you found it:
-
-- Split a 30-line function into three 8-line functions
-- Renamed a variable from `tmp` to `parsed_command_data`
-- Extracted magic string `"null"` into named constant `NULL_COMMAND`
-- Added one missing test for an error path
-
-**Every commit should leave the codebase more readable than it was.**
-
----
-
-## Exception Rule: When You Can Provide a Snippet
-
-If a user is genuinely stuck on one specific thing (e.g., "How do I structure the try-catch for API timeout?"), provide ONE small example (5-10 lines max), then immediately tell them to type it out themselves and adapt it to their context. Never paste ready-to-run code.
-
-**Example exception response:**
-> "Your API call needs a timeout wrapper. Here's the pattern:
-> ```python
-> try:
->     response = self.client.models.generate_content(..., timeout=10)
-> except Timeout:
->     return "API timed out; please try again"
-> ```
-> Now adapt this to your PromptProcessor; think about what fallback message makes sense for your use case, and type it out."
-
----
-
-## Closing: The Real Standard
-
-This isn't about checking boxes. It's about building a system where:
-- A new developer can understand `process()` without reading 5 helper functions
-- When you change how shell execution works, you only modify `SystemTerminal`
-- When tests fail, they fail loudly and specifically
-- You can refactor without fear of hidden side effects
-
-**Systems that embody these principles are fragile-free, testable, and team-friendly.**
-
+If removing the comment wouldn't confuse a future reader, it shouldn't be
+there. Flag comments like this as noise, not as missing-documentation.
+
+### Hardcoded dev-machine paths are a real, previously-shipped bug class
+This project has shipped literal `/home/<dev-machine-username>/...` paths
+into `INSTRUCTION.md`'s tool-invocation examples at least twice (see the
+`PROJECT_DIR`/`_REPO_ROOT` comments in `processor.py` and `flora_daemon.py`
+for the incident writeups) — each time breaking on a fresh install on a
+different machine. Flag any new literal absolute path containing a
+username or this specific dev machine's layout; it should be
+`Path(__file__).resolve().parent`, `$PROJECT_DIR` (in prompt templates), or
+similar.
+
+## PART II: NO STUBBED MECHANICS
+
+When a function's whole reason to exist is a specific mechanic (a DB
+query, a subprocess pipeline, an API call), that mechanic must be real and
+complete — not a `# TODO: implement the actual logic` placeholder. A
+`tools/*.py` script exists specifically to give the model (and, in the
+teaching tool `learnxinyminutes_docs.py`, the user) working code for one
+concrete thing; withholding that one thing defeats the file's purpose.
+
+Generic/placeholder naming is fine and often correct (see
+`learnxinyminutes_docs.py`'s boilerplate output) — a wrong *guess* at
+domain naming is worse than an honest placeholder. What's not fine is a
+placeholder standing in for the mechanism itself.
+
+## PART III: THE COMMAND-EXECUTION SAFETY CHECKPOINTS
+
+Three checkpoints exist between "the model wants to run a command" and
+"a command actually executes," each independently:
+
+1. `NULL_COMMAND` / blank rejection — `executor.py`'s `SystemTerminal.run_command` (`_reject_blank_or_null`)
+2. Confirm-gating — `flora_daemon.py`'s `_confirm_and_run`: any command containing `sudo` always asks first (`_SUDO_TOKEN_RE`); this is a deliberate, explained design choice (see its comment), not an oversight
+3. Repeat-block — `_check_repeat_block`: hard-refuses to literally re-run the same command within 90s, regardless of whether the model reads the recent-actions context it's given
+
+**Never bypass these by calling `subprocess.run`/`os.system` directly** in
+new code — route through `SystemTerminal.run_command()` so all three stay
+in force. If a new feature seems to need to skip one of them, that's a
+design conversation, not a quiet workaround.
+
+## PART IV: CONFIGURATION — everything through `FloraSettings`
+
+New settings belong in `config.py`'s `FloraSettings` (a frozen pydantic
+model) plus a line in `ConfigVault._service_overrides()`, not a scattered
+`os.getenv(...)` in whichever module needs it. If a setting is only
+required for a specific provider/mode (see `ai_provider`'s conditional
+`_require_selected_provider_credentials`), make it conditionally required,
+not unconditionally required with a workaround default — a user on
+`FLORA_AI_PROVIDER=anthropic` shouldn't need a Gemini key they'll never
+use.
+
+## PART V: ERROR HANDLING — matches this codebase's actual pattern
+
+This codebase does **not** follow a blanket "never return None, always
+raise" rule — `Optional`/`None` returns are the normal, correct pattern
+here for "nothing to do" (e.g. `_maybe_execute` returning `None` for
+`NULL_COMMAND`, `_check_repeat_block` returning `Optional[str]`).
+
+Broad `except Exception:` at an isolation boundary, paired with
+`logger.exception(...)`, is the deliberate pattern for keeping one
+subsystem's failure from taking down another — e.g. `_speak_chunk`
+isolating a TTS pipeline failure from being mislabeled as an orchestration
+failure, or `_archive_stale_conversation` not letting a research-library
+write failure lose the conversation memory it already popped. Don't flag
+these as "silently swallowing errors" — check instead that the exception
+is actually logged (`logger.exception`, not a bare `pass`) and that the
+boundary is a real isolation point, not just convenience.
+
+Raise exceptions (`ValueError`, `ConfigurationError`, etc.) for genuine
+programmer/config errors that should stop execution — e.g.
+`SystemTerminal._reject_blank_or_null`, `config.py`'s
+`ConfigurationError`. The distinction is: *expected, handleable outcome*
+→ `None`/`Optional` return; *invalid state that shouldn't be silently
+tolerated* → exception.
+
+## PART VI: GATE EXPENSIVE WORK BEHIND CHEAP, DETERMINISTIC CHECKS
+
+Recurring pattern across `watchers/` and `processor.py`: before doing
+something expensive (a model call, a full watcher cycle), run a cheap
+deterministic pre-filter and skip if it doesn't match. Examples:
+`quantum_watcher.py`'s keyword regex before treating screen text as
+quantum-related, `processor.py`'s `_needs_deep_reasoning` regex/length
+check before routing to the slower "deep" tier. New watchers or routing
+logic should follow this shape rather than asking a model to judge its own
+question's complexity first.
+
+## PART VII: FUNCTION SIZE AND ABSTRACTION
+
+Favor small, single-purpose functions when a section of logic is genuinely
+reusable or independently testable (see `flora_daemon.py`'s decomposition
+of `run_daemon` into `_generate`, `_handle_instruction`, `_maybe_execute`,
+`_confirm_and_run`, etc.). But **do not** treat a hard line-count as the
+metric — this codebase's functions routinely carry substantial WHY
+commentary that inflates line count without adding complexity. Judge on:
+does the function have one clear responsibility, and can you name it
+accurately? A well-named 40-line function with 25 lines of WHY comments
+explaining real constraints is not a violation; a 15-line function doing
+three unrelated things is.
+
+## Review Checklist
+
+- [ ] New comments explain *why* (citing a real constraint/bug where applicable), not *what* the code already says
+- [ ] No new hardcoded absolute paths tied to a specific dev machine/user
+- [ ] No stubbed-out mechanic where the function's whole purpose is that mechanic
+- [ ] New command execution goes through `SystemTerminal.run_command()`, not a direct `subprocess`/`os.system` call
+- [ ] New settings live in `FloraSettings` + `_service_overrides()`, not scattered `os.getenv`
+- [ ] `except Exception` blocks log via `logger.exception` and sit at a real isolation boundary, not a silent `pass`
+- [ ] Expensive/model-call-triggering logic has a cheap deterministic pre-filter where one makes sense
+- [ ] Each function has one clear, nameable responsibility (commentary volume isn't part of this judgment)
+
+## Providing a snippet when someone's stuck
+
+If a contributor is stuck on one specific mechanic, give a real, complete
+example matching this codebase's own patterns above (not a toy
+generic-clean-code example) and point at the closest existing file to
+model it after — e.g. "look at how `backends/openai_backend.py` shapes
+its call to match `backends/anthropic_backend.py`'s interface."
