@@ -20,7 +20,7 @@ Florinda is a voice-activated, AI-powered research assistant designed specifical
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/florinda-ai.git
+git clone https://github.com/CosmicLM/florinda-ai.git
 cd florinda-ai
 ./install.sh
 ```

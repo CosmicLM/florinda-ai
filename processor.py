@@ -24,8 +24,8 @@ END_OF_COMMAND_TOKEN = "<END>"
 # invocation examples (`python3 $PROJECT_DIR/tools/...`) used to hardcode
 # this project's dev machine's absolute path — verified live as a real bug,
 # not theoretical: a fresh install on a different machine/user tried to run
-# `/home/manjaro/Projects/flora-ai/tools/task_runner.py`, which obviously
-# doesn't exist there. processor.py is always at the repo root (see the
+# the literal string `/home/<dev-machine-user>/florinda-ai/tools/task_runner.py`,
+# which obviously doesn't exist there. processor.py is always at the repo root (see the
 # folder reorg's own root/entry-point layer), so this is a reliable
 # absolute path regardless of the daemon's cwd or which user/machine it's
 # running on.
