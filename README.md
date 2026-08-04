@@ -1,18 +1,17 @@
 # Florinda AI ✶
 
-A Jarvis-like research assistant deeply integrated into your Linux laptop and Hyprland environment. Made for quantum computing research
+A Jarvis-like research assistant deeply integrated into your Linux system. Made for quantum computing research and other academic fields
 
 > **Naming note:** the assistant's name is **Florinda** — that's what it calls itself, what the GitHub repo/README use, and what any human-facing text says. Internally, the codebase uses the short technical token **flora** for anything invisible to an end user: file names (`flora_daemon.py`), environment variables (`FLORA_API_KEY`), the systemd service (`flora-daemon.service`), the Docker container (`flora-ai-searxng`), and the local project/data directories (`flora-ai`). If you're grepping the code and only find "flora", that's expected — it's the same project, just the plumbing side of the name rather than the public one.
 
 ## Overview
 
 
-Florinda is a voice-activated, AI-powered research assistant designed specifically for Hyprland users. Get instant answers, perform research, and manage tasks without leaving your workflow.
+Florinda is a voice-activated, AI-powered research assistant made for Quantum Research. Get instant answers, , Runs on qiskit, conducts research, and manage tasks without leaving your workflow.
 
 ## Features
 
 - **Voice Activation** - Hands-free interaction with natural language commands
-- **Hyprland Integration** - Seamlessly integrated with your window manager
 - **Research Assistant** - Quick information retrieval and web searches
 - **Context Aware** - Understands your active window and workspace
 - **Lightweight** - Optimized for Linux systems
@@ -40,7 +39,7 @@ too — see SETUP.md's "Updating an existing install" section.
 
 ## Quick Start
 
-1. Configure your Hyprland keybind
+1. Configure your activation keybind
 2. Press your activation key
 3. Speak your query or type your request
 4. Florinda processes and displays results
