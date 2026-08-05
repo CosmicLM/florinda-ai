@@ -42,6 +42,14 @@ openai>=2.50,<3
 # distinct from claude_cli_backend.py's subscription-based `claude` CLI route
 anthropic>=0.120,<1
 
+# tools/technical_overview.py — real executed plots of the equations in a
+# generated technical writeup (numpy/pillow above are already present and
+# reused for the plotting itself and the equation+plot image composite;
+# matplotlib is the one new piece, run headless via MPLBACKEND=Agg the same
+# way qiskit_runner.py already runs it in its own separate venv — this is
+# the main venv's own copy, since this tool isn't Qiskit-specific)
+matplotlib>=3.8,<4
+
 # voice/wake_word.py — hands-free "hey mycroft" activation, opt-in via
 # FLORA_WAKE_WORD_ENABLED (see config.py). Lightweight/CPU-only (openWakeWord
 # runs 15-20 models in real time on a single Raspberry Pi 3 core) —
