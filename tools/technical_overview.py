@@ -39,6 +39,16 @@ section that compiled and ran fine. Each failure is left as a visible note
 inline in the document AND printed to stderr, so the assistant can see
 exactly what to fix in a follow-up call instead of the whole thing silently
 vanishing or hard-failing.
+
+WHY it auto-opens in Obsidian rather than just printing a path: the whole
+point of a technical overview is the user actually reading it (rendered
+headings, embedded equation+plot images), not a file path they'd have to go
+open themselves — same reasoning as qiskit_runner.py/latex_runner.py
+popping figures up automatically with no separate action needed. Uses
+obsidian-cli the same way knowledge_base.py's open_note does (see
+_open_in_obsidian) — best-effort, since a missing obsidian-cli install
+should never fail the actual document build, which has already fully
+succeeded by that point.
 """
 import json
 import os
@@ -163,6 +173,11 @@ def build(spec: dict, overviews_dir: Path = OVERVIEWS_DIR) -> tuple[Path, list[s
 
     doc_path = doc_dir / "overview.md"
     doc_path.write_text("\n".join(lines).strip() + "\n")
+
+    obsidian_error = _open_in_obsidian(doc_path, overviews_dir.parent)
+    if obsidian_error:
+        errors.append(f"[Obsidian] {obsidian_error}")
+
     return doc_path, errors
 
 
@@ -198,6 +213,36 @@ def _render_equation(equation: dict, index: int, images_dir: Path) -> tuple[list
     if plot_error:
         out.append(f"*(plot could not be generated: {plot_error})*\n")
     return out, (f"plot failed: {plot_error}" if plot_error else None)
+
+
+def _open_in_obsidian(doc_path: Path, vault_root: Path) -> Optional[str]:
+    """Opens the freshly built document directly in Obsidian via
+    obsidian-cli, so the user sees the real rendered document (embedded
+    images, headings) immediately instead of a bare file path — same
+    vault-relative-name convention as knowledge_base.py's open_note
+    (obsidian-cli resolves a vault by its REGISTERED NAME, which for
+    OVERVIEWS_DIR's default location is "Research", the name under which
+    `~/Documents/Research` is already registered as a vault covering every
+    other thing this project saves there).
+
+    WHY best-effort, not fatal: the document itself is already fully built
+    and saved by the time this runs — a missing obsidian-cli install or an
+    unregistered vault must not be allowed to look like the BUILD failed,
+    only that this one extra convenience step couldn't happen. Returns an
+    error string on failure (folded into build()'s existing errors list),
+    None on success."""
+    try:
+        note_name = str(doc_path.relative_to(vault_root).with_suffix(""))
+    except ValueError:
+        return f"{doc_path} is not under the Obsidian vault root {vault_root}, skipped"
+    try:
+        subprocess.Popen(
+            ["obsidian-cli", "open", note_name, "-v", vault_root.name],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return "obsidian-cli is not installed, could not auto-open"
+    return None
 
 
 def _fresh_dir(overviews_dir: Path, slug: str) -> Path:
