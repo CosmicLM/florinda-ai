@@ -322,6 +322,16 @@ def setup_venv(prompter: Prompter) -> None:
     piper_tts_alias = VENV_DIR / "bin" / "piper-tts"
     if piper_bin.exists() and not piper_tts_alias.exists():
         piper_tts_alias.symlink_to("piper")
+    # WHY --no-deps: verified live — openwakeword's own PyPI metadata
+    # unconditionally requires tflite-runtime on Linux, and no tflite-runtime
+    # wheel exists for this project's Python version at all, so a normal
+    # `pip install openwakeword` (or including it in requirements.txt) fails
+    # outright. Its ONNX backend (the only one wake_word.py uses) never
+    # imports tflite_runtime, confirmed live — its REAL dependencies
+    # (onnxruntime, scipy, scikit-learn, tqdm) are already in requirements.txt
+    # above, so --no-deps here just skips re-resolving the one broken,
+    # unused dependency line.
+    _run([pip, "install", "--no-deps", "openwakeword>=0.6,<0.7"])
 
 
 _DEFAULT_OLLAMA_MODEL = "phi4-mini"  # matches config.py's own FloraSettings.local_model default
@@ -500,6 +510,31 @@ def setup_qiskit_venv(prompter: Prompter) -> Optional[str]:
     _run([pip, "install", "qiskit", "qiskit-aer", "matplotlib"])
     print(f"Qiskit environment ready at {venv_path}.")
     return None if venv_path == _DEFAULT_QISKIT_VENV else str(venv_path / "bin" / "python3")
+
+
+def setup_wake_word(prompter: Prompter) -> bool:
+    """Optional — hands-free "hey mycroft" activation (voice/wake_word.py).
+    Returns whether it was enabled. Unlike setup_qiskit_venv above, there's
+    no separate download to confirm here — openwakeword/sounddevice/
+    webrtcvad are already installed unconditionally by setup_venv() (see
+    requirements.txt's own WHY note on why openwakeword needs a dedicated
+    --no-deps install there); this only decides whether the always-on
+    service actually turns the microphone on for it, since continuous mic
+    listening — unlike dependency weight — is a real, deliberate default
+    worth being asked about explicitly."""
+    print("\n--- Hands-free wake-word activation (optional) ---")
+    if not prompter.confirm(
+        "setup_wake_word",
+        'Enable hands-free "hey mycroft" wake-word activation, so Florinda '
+        "listens continuously instead of only responding to push-to-talk? "
+        'Ships with a pretrained "hey mycroft" phrase — see SETUP.md for how '
+        'to train a real custom "Hey Florinda" model later.',
+        default=False,
+    ):
+        print("Skipped — push-to-talk remains the only way to talk to Florinda.")
+        return False
+    print('Wake-word activation enabled (phrase: "hey mycroft" until a custom model is configured).')
+    return True
 
 
 LEARNXINYMINUTES_REPO_PATH = Path.home() / ".local/share/flora-ai/learnxinyminutes-docs"
@@ -1133,6 +1168,8 @@ def _describe_existing_config(existing: dict) -> None:
         print(f"  Voice model: {existing['DEFAULT_VOICE_MODEL']}")
     if existing.get("FLORA_QISKIT_VENV_PYTHON"):
         print(f"  Qiskit venv: {existing['FLORA_QISKIT_VENV_PYTHON']}")
+    if existing.get("FLORA_WAKE_WORD_ENABLED", "").lower() == "true":
+        print(f"  Wake-word: enabled ({existing.get('FLORA_WAKE_WORD_MODEL', 'hey_mycroft')})")
 
 
 def main() -> None:
@@ -1185,6 +1222,8 @@ def main() -> None:
             qiskit_venv_python = setup_qiskit_venv(prompter)
             if qiskit_venv_python:
                 env_vars["FLORA_QISKIT_VENV_PYTHON"] = qiskit_venv_python
+            if setup_wake_word(prompter):
+                env_vars["FLORA_WAKE_WORD_ENABLED"] = "true"
         write_env(env_vars, prompter)
         needs_relogin = setup_docker(prompter)
         setup_learnxinyminutes_snippets(prompter)
