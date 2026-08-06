@@ -87,6 +87,14 @@ def read_entry(title: str, library_dir: Path = LIBRARY_DIR) -> str:
     raise ResearchLibraryError(f"no entry titled {title!r}")
 
 
+def read_body(title: str, library_dir: Path = LIBRARY_DIR) -> str:
+    """Same as read_entry, but strips the `# title` / `Tags:` / `Saved:`
+    header block and returns just the saved content — for callers (e.g.
+    flora_daemon.py's preference pull-in) that want the substance to feed
+    into a prompt, not save()'s own bookkeeping metadata repeated back."""
+    return read_entry(title, library_dir).split("---\n\n", 1)[-1].strip()
+
+
 def list_entries(tag: Optional[str] = None, library_dir: Path = LIBRARY_DIR) -> list[tuple[str, str, str]]:
     """Returns [(title, tags_csv, saved_at), ...] newest first."""
     entries = []
