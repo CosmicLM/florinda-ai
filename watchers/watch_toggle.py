@@ -1,6 +1,14 @@
 """watch_toggle.py — lets the user pause/resume Florinda's passive screen-watching
-(OCR + quantum-keyword detection + sys-info updates) at runtime, without
-restarting the always-on service.
+(OCR + quantum-keyword detection + sys-info updates) AND hands-free wake-word
+mic listening (voice/wake_word.py) at runtime, without restarting the
+always-on service.
+
+WHY one toggle covers both, not two separate ones: a privacy request
+("stop watching me") almost certainly means "stop paying ambient attention
+to me altogether" — vision AND ambient audio — not just one of the two.
+flora_service.py's wake-word thread checks this same is_paused() alongside
+settings.wake_word_enabled (see its should_listen callback in main()), so
+pausing here closes the microphone too, not just the screen.
 
 WHY a flag file instead of a socket or signal: flora_service.py's screen-watch
 loop already polls on a short, fixed interval (screen_watch_interval_s,
@@ -50,10 +58,13 @@ def _main() -> None:
     action = sys.argv[1] if len(sys.argv) >= 2 else None
     if action == "off":
         set_paused(True)
-        print(f"Screen watching paused (auto-resumes in {int(_MAX_PAUSE_S / 60)} minutes if not turned back on sooner).")
+        print(
+            f"Screen watching AND wake-word mic listening paused (auto-resumes in "
+            f"{int(_MAX_PAUSE_S / 60)} minutes if not turned back on sooner)."
+        )
     elif action == "on":
         set_paused(False)
-        print("Screen watching resumed.")
+        print("Screen watching and wake-word mic listening resumed.")
     elif action == "status":
         print("paused" if is_paused() else "active")
     else:

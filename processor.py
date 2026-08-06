@@ -542,6 +542,7 @@ class PromptProcessor:
         sys_info: str = "",
         recent_actions: str = "",
         qiskit_notes: str = "",
+        preferences: str = "",
         on_speech_chunk: Optional[Callable[[str], None]] = None,
         conversation_history: Optional[list] = None,
         cancel_event: Optional[threading.Event] = None,
@@ -571,6 +572,11 @@ class PromptProcessor:
         Qiskit API corrections (see FloraDaemon._format_qiskit_notes) —
         included only on turns that look Qiskit-related, since it's dead
         weight on every other request.
+
+        `preferences`, if given, is every persistent behavioral rule the
+        user has saved to the Research Library tagged `preference` (see
+        FloraDaemon._format_preferences) — included on every turn, since a
+        saved preference can be about anything.
 
         `cancel_event`, if given and set mid-stream, stops consuming further
         chunks (and therefore emitting further on_speech_chunk calls) as soon

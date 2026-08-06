@@ -49,6 +49,22 @@ class ConversationMemory:
     def clear(self) -> None:
         self._save([])
 
+    def pop_stale_turns(self) -> list[dict[str, Any]]:
+        """Same staleness check as get_history_contents(), but RETURNS and
+        CLEARS the discarded turns instead of silently dropping them — lets
+        a caller archive a conversation into longer-term storage before it's
+        lost, rather than it just vanishing once reset_after_s elapses.
+        Returns [] (and leaves storage untouched) if there's no history at
+        all, or if the conversation is still fresh — there's nothing stale
+        to pop in either case."""
+        turns = self._load()
+        if not turns:
+            return []
+        if time.time() - turns[-1]["timestamp"] <= self._reset_after_s:
+            return []
+        self._save([])
+        return turns
+
     def _append(self, role: str, text: str) -> None:
         if not text or not text.strip():
             return
@@ -104,6 +120,22 @@ if __name__ == "__main__":
         time.sleep(0.05)
         assert stale_memory.get_history_contents() == []
         print("OK: stale conversation resets to empty")
+
+        # pop_stale_turns: returns+clears what get_history_contents would
+        # have silently discarded, using a fresh path so it's independent
+        # of the assertions above
+        pop_path = Path(tmp_dir) / "pop_conversation.json"
+        pop_memory = ConversationMemory(pop_path, max_turns=4, reset_after_s=0.01)
+        assert pop_memory.pop_stale_turns() == [], "nothing to pop with no history yet"
+        pop_memory.add_user_turn("What's the capital of France?")
+        pop_memory.add_assistant_turn("Paris.")
+        assert pop_memory.pop_stale_turns() == [], "fresh conversation has nothing stale to pop"
+        time.sleep(0.05)
+        popped = pop_memory.pop_stale_turns()
+        assert [t["content"] for t in popped] == ["What's the capital of France?", "Paris."], popped
+        assert pop_memory.get_history_contents() == [], "storage should be cleared after popping"
+        assert pop_memory.pop_stale_turns() == [], "already-cleared storage has nothing left to pop"
+        print("OK: pop_stale_turns returns+clears exactly what would've been silently lost")
 
         memory.clear()
         assert memory.get_history_contents() == []

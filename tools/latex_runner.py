@@ -81,10 +81,12 @@ def _prune_old_figures() -> None:
         shutil.rmtree(stale_dir, ignore_errors=True)
 
 
-def render(source: str) -> Path:
+def compile_source(source: str) -> Path:
     """Compiles `source` (a LaTeX snippet, or a full document if it declares
-    its own \\documentclass) to a cropped PNG and pops it up immediately.
-    Returns the PNG's path."""
+    its own \\documentclass) to a cropped PNG and returns its path — WITHOUT
+    popping anything up. Split out from render() below so other tools
+    (technical_overview.py) can compile a real equation image to compose
+    into a larger figure, without a standalone popup window per equation."""
     if shutil.which("pdflatex") is None:
         raise LatexRunnerError("pdflatex not found — TeX Live doesn't seem to be installed")
 
@@ -119,6 +121,13 @@ def render(source: str) -> Path:
     if convert.returncode != 0 or not png_path.exists():
         raise LatexRunnerError(f"PDF-to-PNG conversion failed: {convert.stderr.strip()}")
 
+    return png_path
+
+
+def render(source: str) -> Path:
+    """Compiles `source` the same way as compile_source() and pops the
+    result up immediately. Returns the PNG's path."""
+    png_path = compile_source(source)
     popup_image(str(png_path), "LaTeX")
     return png_path
 

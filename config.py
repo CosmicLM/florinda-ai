@@ -83,6 +83,30 @@ class FloraSettings(BaseModel):
     pending_confirm_timeout_s: float = Field(default=60.0, description="FLORA_CONFIRM_TIMEOUT_S")
     mic_source: Optional[str] = Field(default=None, description="FLORA_MIC_SOURCE")
 
+    # --- Always-on service: hands-free wake-word activation (voice/wake_word.py) ---
+    # WHY default False: continuous mic listening is a real, deliberate
+    # default to opt into, distinct from screen_watch_enabled above (which
+    # defaults True) — see install.py's setup_wake_word for the confirm-first
+    # install step that flips this on.
+    wake_word_enabled: bool = Field(default=False, description="FLORA_WAKE_WORD_ENABLED")
+    # WHY "hey_mycroft" as the default: openWakeWord's confirmed pretrained
+    # models are alexa/hey_mycroft/timers/weather — there is no "Hey Florinda"
+    # model without training one (see SETUP.md's wake-word section for how).
+    # This can be either a bundled model name or a path to a custom .onnx.
+    wake_word_model: str = Field(default="hey_mycroft", description="FLORA_WAKE_WORD_MODEL")
+    wake_word_threshold: float = Field(default=0.5, description="FLORA_WAKE_WORD_THRESHOLD")
+    wake_word_silence_timeout_s: float = Field(
+        default=1.2, description="FLORA_WAKE_WORD_SILENCE_TIMEOUT_S"
+    )
+    # WHY a separate cap from ptt_max_recording_s rather than reusing it:
+    # wake-word utterances have no button-release to force-stop them if
+    # silence detection ever fails to fire — this is the wake-word path's
+    # own safety backstop, kept distinct so tuning one doesn't silently
+    # affect the other input path.
+    wake_word_max_utterance_s: float = Field(
+        default=30.0, description="FLORA_WAKE_WORD_MAX_UTTERANCE_S"
+    )
+
     # --- Always-on service: status broadcasting + audio cues ---
     ptt_listen_sound: Optional[str] = Field(
         default="/usr/share/sounds/Pop/stereo/notification/message.oga",
@@ -135,6 +159,21 @@ class FloraSettings(BaseModel):
         "quantum", "qubit", "qiskit", "superposition", "entanglement", "decoherence",
         "hadamard", "bloch sphere", "quantum circuit", "quantum gate", "unitary",
         "ansatz", "vqe", "qaoa", "hamiltonian", "pauli", "transpile", "statevector",
+        # WHY these four: generic Qiskit vocabulary alone misses the terms
+        # that actually show up while working on the user's own project,
+        # Anecho (error mitigation) — see quantum_watcher.py's Anecho context.
+        "anecho", "zne", "spam calibration", "ising",
+        # WHY this batch: the original list covered circuit-building
+        # vocabulary well but missed three whole categories that come up
+        # just as often in real research-session screen text — named
+        # algorithms/states, Qiskit's own runtime/primitives vocabulary,
+        # and error-mitigation terms beyond ZNE specifically.
+        "grover", "shor", "teleportation", "bell state", "ghz state",
+        "quantum fourier transform", "trotter",
+        "aer simulator", "sampler", "estimator", "coupling map", "noise model",
+        "error mitigation", "richardson extrapolation", "probabilistic error cancellation",
+        "readout error", "gate fidelity", "pauli twirling", "clifford", "stabilizer",
+        "eigenvalue", "eigenstate", "expectation value", "density matrix", "kraus",
     ])
     quantum_watch_cooldown_s: float = Field(default=300.0, description="FLORA_QUANTUM_WATCH_COOLDOWN_S")
 
@@ -238,6 +277,16 @@ class ConfigVault:
             overrides["pending_confirm_timeout_s"] = float(v)
         if (v := os.getenv("FLORA_MIC_SOURCE")) is not None:
             overrides["mic_source"] = v
+        if (v := os.getenv("FLORA_WAKE_WORD_ENABLED")) is not None:
+            overrides["wake_word_enabled"] = v.lower() == "true"
+        if (v := os.getenv("FLORA_WAKE_WORD_MODEL")) is not None:
+            overrides["wake_word_model"] = v
+        if (v := os.getenv("FLORA_WAKE_WORD_THRESHOLD")) is not None:
+            overrides["wake_word_threshold"] = float(v)
+        if (v := os.getenv("FLORA_WAKE_WORD_SILENCE_TIMEOUT_S")) is not None:
+            overrides["wake_word_silence_timeout_s"] = float(v)
+        if (v := os.getenv("FLORA_WAKE_WORD_MAX_UTTERANCE_S")) is not None:
+            overrides["wake_word_max_utterance_s"] = float(v)
         if (v := os.getenv("FLORA_PTT_LISTEN_SOUND")) is not None:
             overrides["ptt_listen_sound"] = v or None
         if (v := os.getenv("FLORA_PTT_TALKING_SOUND")) is not None:

@@ -41,3 +41,41 @@ openai>=2.50,<3
 # anthropic_backend.py — native Anthropic API provider (FLORA_AI_PROVIDER=anthropic),
 # distinct from claude_cli_backend.py's subscription-based `claude` CLI route
 anthropic>=0.120,<1
+
+# tools/technical_overview.py — real executed plots of the equations in a
+# generated technical writeup (numpy/pillow above are already present and
+# reused for the plotting itself and the equation+plot image composite;
+# matplotlib is the one new piece, run headless via MPLBACKEND=Agg the same
+# way qiskit_runner.py already runs it in its own separate venv — this is
+# the main venv's own copy, since this tool isn't Qiskit-specific)
+matplotlib>=3.8,<4
+
+# voice/wake_word.py — hands-free "hey mycroft" activation, opt-in via
+# FLORA_WAKE_WORD_ENABLED (see config.py). Lightweight/CPU-only (openWakeWord
+# runs 15-20 models in real time on a single Raspberry Pi 3 core) —
+# installed unconditionally like everything else above; it's the LISTENING
+# BEHAVIOR that stays opt-in, not the dependency weight.
+#
+# WHY openwakeword itself is NOT listed here: verified live on this exact
+# environment (Python 3.14) — openwakeword's own PyPI metadata unconditionally
+# requires `tflite-runtime` on Linux, and no tflite-runtime wheel exists for
+# this Python version at all (a plain `pip install -r requirements.txt`
+# fails outright on it). Its ONNX inference backend (used exclusively here —
+# see wake_word.py's `inference_framework="onnx"`) never imports
+# tflite_runtime at all, confirmed live. install.py's setup_venv() installs
+# openwakeword separately via `pip install --no-deps`, same precedent as
+# piper-tts just below in that function — its REAL dependencies (the ones
+# the onnx path actually needs) are listed explicitly here instead, so the
+# normal `-r requirements.txt` resolve covers them without ever touching
+# openwakeword's own broken dependency line.
+onnxruntime>=1.10,<2
+tqdm>=4.0,<5
+scipy>=1.3,<2
+scikit-learn>=1.0,<2
+sounddevice>=0.5,<0.6
+# WHY still listed despite wake_word.py importing `_webrtcvad` (its compiled
+# extension) directly, not the `webrtcvad` package's own top-level module:
+# this IS where that extension is actually built/installed from — see
+# wake_word.py's own WHY note on the pure-Python wrapper's broken
+# pkg_resources import on this environment's setuptools.
+webrtcvad>=2.0,<3

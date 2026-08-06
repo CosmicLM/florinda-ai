@@ -7,9 +7,9 @@ here and why — this guide is the "how," that one's the "what."
 **Fastest path**: `./install.sh` does everything below interactively —
 detects your distro (Arch/Debian/Fedora) and desktop, installs system
 packages (confirming before any `sudo` step), sets up the venv, prompts for
-an AI provider and voice model, optionally sets up a Qiskit environment and
-a local learnxinyminutes snippet reference, writes `.env`, brings up the
-SearXNG container, and installs the systemd
+an AI provider and voice model, optionally sets up a Qiskit environment, a
+local learnxinyminutes snippet reference, and hands-free wake-word
+activation, writes `.env`, brings up the SearXNG container, and installs the systemd
 service. What follows is what it's actually doing, for anyone who wants to
 run the steps by hand, understand them, or debug a step that didn't go as
 expected. Already installed? See "Updating an existing install" near the
@@ -446,6 +446,58 @@ rather keep the clone somewhere else, point at it instead:
 # in .env
 FLORA_LEARNXINYMINUTES_REPO="/path/to/your/clone"
 ```
+
+## (Optional) Hands-free wake-word activation
+
+`voice/wake_word.py` lets Florinda listen continuously for a wake phrase
+("hey mycroft," by default) instead of only responding while a push-to-talk
+key is held. This is entirely optional — skip it and push-to-talk remains
+the only way to talk to Florinda. `install.sh` asks about this during a full
+reconfigure; to enable it by hand instead:
+
+```bash
+# in .env
+FLORA_WAKE_WORD_ENABLED="true"
+```
+
+The required packages (`openwakeword`, `sounddevice`, `webrtcvad`) are
+already installed as part of step 2 above, regardless of whether this is
+enabled — it's the *listening behavior* that's opt-in, not the dependency
+weight (continuous mic capture is a real, deliberate default worth being
+asked about explicitly).
+
+**Wake phrase**: there is no pretrained "Hey Florinda" model — openWakeWord
+ships `alexa`, `hey_mycroft`, `timers`, and `weather`. Florinda uses
+`hey_mycroft` out of the box (works immediately, no extra steps). To train a
+real custom "Hey Florinda" model instead:
+
+1. Use openWakeWord's free web trainer at
+   [openwakeword.com/train](https://openwakeword.com/train) (generates
+   synthetic training clips, optionally using your own recorded voice for
+   better accuracy) or its
+   [official Colab notebook](https://github.com/dscripka/openWakeWord/blob/main/notebooks/training_models.ipynb)
+   — both need your own interactive session, so this can't be scripted.
+2. Download the resulting `.onnx` model file somewhere on this machine.
+3. Point Florinda at it:
+
+```bash
+# in .env
+FLORA_WAKE_WORD_MODEL="/path/to/hey_florinda.onnx"
+```
+
+**Tuning** (all optional, sensible defaults apply if unset):
+
+```bash
+# in .env
+FLORA_WAKE_WORD_THRESHOLD="0.5"           # detection sensitivity (0-1, lower = more trigger-happy)
+FLORA_WAKE_WORD_SILENCE_TIMEOUT_S="1.2"   # trailing silence before an utterance is considered done
+FLORA_WAKE_WORD_MAX_UTTERANCE_S="30"      # hard safety cap if silence detection never fires
+```
+
+Saying "stop watching" / "pause watching" (see `INSTRUCTION.md`'s Live
+Screen Context section) pauses wake-word mic listening along with
+screen-watching — a privacy request means no ambient attention at all, not
+just vision.
 
 ## Updating an existing install
 

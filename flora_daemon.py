@@ -23,7 +23,10 @@ from state_manifest import StateManifest
 # WHY this import, same precedent as watchers/quantum_watcher.py's own
 # `from tools.research_library import save as _save_to_library`: the
 # session-recap archiving below (see _archive_stale_conversation) reuses
-# the exact same writable store, not a second one.
+# the exact same writable store, not a second one. list_entries/read_body
+# are the read-back side used by _format_preferences below.
+from tools.research_library import ResearchLibraryError, list_entries as _list_library_entries
+from tools.research_library import read_body as _read_library_body
 from tools.research_library import save as _save_session_recap
 from voice.voice import AudioEngine
 
@@ -87,6 +90,19 @@ _QISKIT_NOTES = f"""Verified against the REAL installed environment (qiskit 2.4.
 - `some_gate_call(...).c_if(...)` FAILS on this install (AttributeError — removed from InstructionSet). For classically-conditioned gates, use the context-manager form instead: `with qc.if_test((creg_or_bit, value)): qc.x(1)` — the conditioned gate(s) go inside the `with` block.
 - Both `Aer.get_backend('qasm_simulator')` and `AerSimulator()` work fine on this install — no need to guess between them.
 - Not sure about something else? Run `python3 {_REPO_ROOT}/tools/qiskit_docs.py search <keyword>` or `... lookup <dotted.path>` first — it reads the real installed package, not a guess."""
+
+# WHY this exists: verified live — a user-taught persistent rule ("always
+# render an equation with its symbol definitions and a summary") had
+# genuinely been saved to the Research Library, but nothing ever read it
+# back in on later turns. INSTRUCTION.md's Research Library section only
+# ever told the model to search there "if genuinely worth remembering" —
+# whether a saved preference actually got APPLIED on a future turn was
+# purely down to the model happening to search for it unprompted, the same
+# gap $QISKIT_NOTES/$RECENT_ACTIONS already closed for their own cases.
+# $PREFERENCES below closes it the same way: real, deterministic content,
+# not something left to the model to remember to go look up.
+_PREFERENCE_TAG = "preference"
+_MAX_PREFERENCES = 10  # a prompt-bloat cap, not a design limit
 
 
 def _is_auto_safe_command(command: str) -> bool:
@@ -230,6 +246,7 @@ class FloraDaemon:
             sys_info=sys_info,
             recent_actions=self._format_recent_actions(),
             qiskit_notes=self._format_qiskit_notes(user_input),
+            preferences=self._format_preferences(),
             on_speech_chunk=self._speak_chunk,
             conversation_history=conversation_history,
             cancel_event=self._interrupt_event,
@@ -373,6 +390,35 @@ class FloraDaemon:
         Qiskit request, so this naturally stays active across the chain
         without extra plumbing)."""
         return _QISKIT_NOTES if _QISKIT_KEYWORD_RE.search(user_input) else ""
+
+    @staticmethod
+    def _format_preferences() -> str:
+        """Real, code-enforced pull of every persistent behavioral rule the
+        user has asked Florinda to always follow — saved to the Research
+        Library tagged exactly `preference` (see INSTRUCTION.md's Persistent
+        Preferences section) — into EVERY turn's prompt as $PREFERENCES.
+
+        WHY every turn, not gated by a keyword filter like $QISKIT_NOTES: a
+        saved preference can be about anything (equation formatting, tone, a
+        workflow habit) — there's no reliable keyword to gate "might this
+        turn need to know a behavioral rule" the way "qiskit" reliably gates
+        Qiskit notes. The list is expected to stay small (a handful of
+        standing rules, not a growing log), so this is cheap on every turn.
+
+        WHY best-effort: a missing/unreadable Research Library must not be
+        allowed to break every single turn — same reasoning as
+        _archive_stale_conversation's own broad except below."""
+        try:
+            entries = _list_library_entries(tag=_PREFERENCE_TAG)
+        except OSError:
+            return ""
+        lines = []
+        for title, _tags, _saved_at in entries[:_MAX_PREFERENCES]:
+            try:
+                lines.append(f"- {_read_library_body(title)}")
+            except ResearchLibraryError:
+                continue
+        return "\n".join(lines)
 
     def _transition_to_thinking(self) -> None:
         """WHY wait_until_done() first: on_thinking() flips the status widget
